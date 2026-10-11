@@ -27,7 +27,6 @@
 #include <arpa/inet.h>
 #endif
 
-#include "common/Config.h"
 #include "common/Logger.hpp"
 #include "nlohmann/json.hpp"
 
@@ -63,6 +62,8 @@ void openHome( const std::string &path = "/" );
 void openBrowser( const std::string &url );
 void openDirectory( const std::string &path );
 
+void makeDesktopShortcut( const std::string &path, const std::string &name );
+
 bool isValidUtf8( const std::string &str );
 
 // 将非法 UTF-8 字节替换为 U+FFFD（UTF-8: EF BF BD）
@@ -71,6 +72,8 @@ std::string sanitizeUtf8( const std::string &in );
 std::string utf8ToLocal( const std::string &utf8 );
 
 std::string localToUtf8( const std::string &local );
+
+std::string wstring_to_string( const std::wstring &wstr );
 
 // 获取JSON中的字符串字段，不存在则返回空字符串
 std::string jsonStringValue( const json &j, const std::string &key );
@@ -119,10 +122,15 @@ bool writeFile( const std::string &path, const std::string &data );
 
 bool makeDir( const std::string &nativePath );
 
+bool makeLink( const std::string &sourcePath, const std::string &linkPath );
+
 bool remove( const std::string &nativePath );
 
 } // namespace fs
 
 } // namespace utils
 
+Logger::OStream &operator<<( Logger::OStream &&os, const std::wstring &msg );
+
+Logger::OStream &operator<<( Logger::OStream &&os, const wchar_t *msg );
 #endif // UTILS_H

@@ -632,66 +632,143 @@ document.addEventListener('DOMContentLoaded', function () {
         if (editor) {
             editor.innerHTML = '';
             if (data.blocks && data.blocks.length > 0) {
-                data.blocks.forEach(function (block, idx) {
+                function getBlockCenterY(block) {
+                    if (block.box && block.box.length >= 2) {
+                        var y0 = +block.box[0].y;
+                        var y2 = +block.box[2].y;
+                        return (y0 + y2) / 2;
+                    }
+                    return null;
+                }
+                function getBlockHeight(block) {
+                    if (block.box && block.box.length >= 4) {
+                        var y0 = +block.box[0].y;
+                        var y2 = +block.box[2].y;
+                        return Math.abs(y2 - y0);
+                    }
+                    return 0;
+                }
+
+                var i = 0;
+                while (i < data.blocks.length) {
+                    var block = data.blocks[i];
                     var type = block.type || 'text';
-                    var el;
 
-                    if (type === 'title') {
-                        el = document.createElement('h3');
-                        el.className = 'ocr-block-title';
-                    } else if (type === 'figure') {
-                        el = document.createElement('div');
-                        el.className = 'ocr-block-figure';
-                        el.innerHTML = '<span class="ocr-figure-placeholder">[图片区域]</span>';
-                    } else if (type === 'table') {
-                        el = document.createElement('div');
-                        el.className = 'ocr-block-table';
-                        if (block.table && block.table.rows) {
-                            var tbl = document.createElement('table');
-                            tbl.className = 'ocr-table';
-                            block.table.rows.forEach(function (row) {
-                                var allEmpty = row.every(function (cell) { return !cell || !cell.trim(); });
-                                if (allEmpty) return;
-                                var tr = document.createElement('tr');
-                                row.forEach(function (cell) {
-                                    var td = document.createElement('td');
-                                    td.textContent = cell || '';
-                                    td.setAttribute('contenteditable', 'true');
-                                    tr.appendChild(td);
+                    if (type !== 'text') {
+                        var el;
+                        if (type === 'title') {
+                            el = document.createElement('h3');
+                            el.className = 'ocr-block-title';
+                        } else if (type === 'figure') {
+                            el = document.createElement('div');
+                            el.className = 'ocr-block-figure';
+                            el.innerHTML = '<span class="ocr-figure-placeholder">[图片区域]</span>';
+                        } else if (type === 'table') {
+                            el = document.createElement('div');
+                            el.className = 'ocr-block-table';
+                            if (block.table && block.table.rows) {
+                                var tbl = document.createElement('table');
+                                tbl.className = 'ocr-table';
+                                block.table.rows.forEach(function (row) {
+                                    var allEmpty = row.every(function (cell) { return !cell || !cell.trim(); });
+                                    if (allEmpty) return;
+                                    var tr = document.createElement('tr');
+                                    row.forEach(function (cell) {
+                                        var td = document.createElement('td');
+                                        td.textContent = cell || '';
+                                        td.setAttribute('contenteditable', 'true');
+                                        tr.appendChild(td);
+                                    });
+                                    tbl.appendChild(tr);
                                 });
-                                tbl.appendChild(tr);
-                            });
-                            el.appendChild(tbl);
+                                el.appendChild(tbl);
+                            }
+                        } else if (type === 'header' || type === 'footer') {
+                            el = document.createElement('div');
+                            el.className = 'ocr-block-' + type;
+                        } else if (type === 'list') {
+                            el = document.createElement('div');
+                            el.className = 'ocr-block-list';
+                        } else if (type === 'figure_caption' || type === 'table_caption') {
+                            el = document.createElement('div');
+                            el.className = 'ocr-block-caption';
+                        } else if (type === 'reference') {
+                            el = document.createElement('div');
+                            el.className = 'ocr-block-reference';
+                        } else if (type === 'equation') {
+                            el = document.createElement('div');
+                            el.className = 'ocr-block-equation';
+                        } else if (type === 'plate') {
+                            el = document.createElement('div');
+                            el.className = 'ocr-block-plate';
+                            var plateText = block.text || '';
+                            var plateTypeMap = { 'single_layer': '单层', 'double_layer': '双层' };
+                            var plateType = plateTypeMap[block.plateType] || block.plateType || '';
+                            if (plateType) plateText = plateText + '  [' + plateType + ']';
+                            el.textContent = plateText;
                         }
-                    } else if (type === 'header' || type === 'footer') {
-                        el = document.createElement('div');
-                        el.className = 'ocr-block-' + type;
-                    } else if (type === 'list') {
-                        el = document.createElement('div');
-                        el.className = 'ocr-block-list';
-                    } else if (type === 'figure_caption' || type === 'table_caption') {
-                        el = document.createElement('div');
-                        el.className = 'ocr-block-caption';
-                    } else if (type === 'reference') {
-                        el = document.createElement('div');
-                        el.className = 'ocr-block-reference';
-                    } else if (type === 'equation') {
-                        el = document.createElement('div');
-                        el.className = 'ocr-block-equation';
-                    } else {
-                        el = document.createElement('div');
-                        el.className = 'ocr-block-text';
+                        if (el) {
+                            el.setAttribute('data-idx', String(i));
+                            if (type !== 'figure' && type !== 'table' && type !== 'plate') {
+                                el.textContent = block.text || '';
+                            }
+                            el.addEventListener('click', function () {
+                                setSelected(parseInt(this.getAttribute('data-idx'), 10));
+                            });
+                            editor.appendChild(el);
+                        }
+                        i++;
+                        continue;
                     }
 
-                    el.setAttribute('data-idx', String(idx));
-                    if (type !== 'figure' && type !== 'table') {
-                        el.textContent = block.text || '';
+                    var lineStart = i;
+                    var refY = getBlockCenterY(block);
+                    var refH = getBlockHeight(block);
+                    var threshold = refH * 0.5;
+                    var lineEnd = i + 1;
+
+                    while (lineEnd < data.blocks.length) {
+                        var nextBlock = data.blocks[lineEnd];
+                        var nextType = nextBlock.type || 'text';
+                        if (nextType !== 'text') break;
+                        var nextY = getBlockCenterY(nextBlock);
+                        if (refY !== null && nextY !== null && Math.abs(nextY - refY) > threshold) break;
+                        lineEnd++;
                     }
-                    el.addEventListener('click', function () {
-                        setSelected(idx);
-                    });
-                    editor.appendChild(el);
-                });
+
+                    if (lineEnd - lineStart === 1) {
+                        var el2 = document.createElement('div');
+                        el2.className = 'ocr-block-text';
+                        el2.setAttribute('data-idx', String(lineStart));
+                        el2.textContent = (block.text || '').replace(/[\r\n]+/g, ' ');
+                        el2.addEventListener('click', function () {
+                            setSelected(parseInt(this.getAttribute('data-idx'), 10));
+                        });
+                        editor.appendChild(el2);
+                    } else {
+                        var lineEl = document.createElement('div');
+                        lineEl.className = 'ocr-line';
+                        for (var j = lineStart; j < lineEnd; j++) {
+                            var span = document.createElement('span');
+                            span.className = 'ocr-block-text ocr-inline';
+                            span.setAttribute('data-idx', String(j));
+                            span.textContent = (data.blocks[j].text || '').replace(/[\r\n]+/g, ' ');
+                            span.addEventListener('click', function () {
+                                setSelected(parseInt(this.getAttribute('data-idx'), 10));
+                            });
+                            lineEl.appendChild(span);
+                            if (j < lineEnd - 1) {
+                                var gap = document.createElement('span');
+                                gap.className = 'ocr-inline-gap';
+                                gap.textContent = ' ';
+                                lineEl.appendChild(gap);
+                            }
+                        }
+                        editor.appendChild(lineEl);
+                    }
+
+                    i = lineEnd;
+                }
             } else {
                 editor.textContent = data.text || '(未识别到文本)';
             }
@@ -729,25 +806,52 @@ document.addEventListener('DOMContentLoaded', function () {
         if (layoutSel && layoutSel.value) {
             formData.append('layout', layoutSel.value);
         }
-        var tableSel = Tools.$('param-table');
-        if (tableSel && tableSel.value) {
-            formData.append('tableModel', tableSel.value);
-        }
         var tableAlgoSel = Tools.$('param-table-algo');
-        if (tableAlgoSel && tableAlgoSel.value) {
-            formData.append('tableAlgo', tableAlgoSel.value);
+        var tableAlgo = tableAlgoSel ? tableAlgoSel.value : '';
+        if (tableAlgo) {
+            formData.append('tableAlgo', tableAlgo);
         }
-        var tableClsSel = Tools.$('param-table-cls');
-        if (tableClsSel && tableClsSel.value) {
-            formData.append('tableClsModel', tableClsSel.value);
+        if (tableAlgo === 'wireless' || tableAlgo === 'combined') {
+            var wirelessSel = Tools.$('param-table-wireless');
+            if (wirelessSel && wirelessSel.value) {
+                formData.append('tableWirelessModel', wirelessSel.value);
+            }
+        }
+        if (tableAlgo === 'wired' || tableAlgo === 'combined') {
+            var wiredSel = Tools.$('param-table-wired');
+            if (wiredSel && wiredSel.value) {
+                formData.append('tableWiredModel', wiredSel.value);
+            }
+        }
+        if (tableAlgo === 'combined') {
+            var tableClsSel = Tools.$('param-table-cls');
+            if (tableClsSel && tableClsSel.value) {
+                formData.append('tableClsModel', tableClsSel.value);
+            }
         }
         var modeSel = Tools.$('param-mode');
         if (modeSel && modeSel.value) {
             formData.append('mode', modeSel.value);
         }
+        if (modeSel && modeSel.value === 'plate') {
+            var plateModelSel = Tools.$('param-plate-model');
+            if (plateModelSel && plateModelSel.value) {
+                formData.append('plateModel', plateModelSel.value);
+            }
+        }
         formData.append('maxSideLen', Tools.$('param-maxSideLen').value);
+        formData.append('limitType', Tools.$('param-limitType').value);
         formData.append('boxScoreThresh', Tools.$('param-boxScoreThresh').value);
+        formData.append('boxThresh', Tools.$('param-boxThresh').value);
         formData.append('unClipRatio', Tools.$('param-unClipRatio').value);
+        formData.append('dilation', Tools.$('param-dilation').value);
+        formData.append('scoreMode', Tools.$('param-scoreMode').value);
+        formData.append('boxType', Tools.$('param-boxType').value);
+        formData.append('spaceChar', Tools.$('param-spaceChar').value);
+        formData.append('recBatchNum', Tools.$('param-recBatchNum').value);
+        formData.append('dropScore', Tools.$('param-dropScore').value);
+        formData.append('clsBatchNum', Tools.$('param-clsBatchNum').value);
+        formData.append('clsThresh', Tools.$('param-clsThresh').value);
 
 
         // 如果有选区，附带裁剪参数（原图坐标，整数）
@@ -838,6 +942,30 @@ document.addEventListener('DOMContentLoaded', function () {
         slider2.addEventListener('input', function () {
             val2.textContent = parseFloat(slider2.value).toFixed(2);
         });
+
+        var slider3 = Tools.$('param-boxThresh');
+        var val3 = Tools.$('param-boxThresh-val');
+        if (slider3 && val3) {
+            slider3.addEventListener('input', function () {
+                val3.textContent = parseFloat(slider3.value).toFixed(2);
+            });
+        }
+
+        var slider4 = Tools.$('param-dropScore');
+        var val4 = Tools.$('param-dropScore-val');
+        if (slider4 && val4) {
+            slider4.addEventListener('input', function () {
+                val4.textContent = parseFloat(slider4.value).toFixed(2);
+            });
+        }
+
+        var slider5 = Tools.$('param-clsThresh');
+        var val5 = Tools.$('param-clsThresh-val');
+        if (slider5 && val5) {
+            slider5.addEventListener('input', function () {
+                val5.textContent = parseFloat(slider5.value).toFixed(2);
+            });
+        }
     }
 
     function initResizeSync() {
@@ -950,33 +1078,58 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!modelData) return;
         var algoSel = Tools.$('param-table-algo');
         var algo = algoSel ? algoSel.value : '';
-        var models = [];
-        if (algo && modelData.tableAlgos) {
+        var wirelessModels = [];
+        var wiredModels = [];
+        if (modelData.tableAlgos) {
             for (var i = 0; i < modelData.tableAlgos.length; i++) {
-                if (modelData.tableAlgos[i].algo === algo) {
-                    models = modelData.tableAlgos[i].models || [];
-                    break;
-                }
+                var a = modelData.tableAlgos[i];
+                if (a.algo === 'wireless' || a.algo === 'combined')
+                    wirelessModels = a.models || wirelessModels;
+                if (a.algo === 'wired')
+                    wiredModels = a.models || wiredModels;
+                if (a.algo === 'combined' && a.wiredModels && a.wiredModels.length > 0)
+                    wiredModels = a.wiredModels;
             }
         }
-        fillSelect('param-table', models, '表格模型');
+
+        var wirelessGroup = Tools.$('table-wireless-group');
+        if (wirelessGroup) {
+            wirelessGroup.style.display = (algo === 'wireless' || algo === 'combined') ? '' : 'none';
+        }
+        if ((algo === 'wireless' || algo === 'combined') && wirelessModels.length > 0) {
+            fillSelect('param-table-wireless', wirelessModels, '无线模型');
+        }
+
+        var wiredGroup = Tools.$('table-wired-group');
+        if (wiredGroup) {
+            wiredGroup.style.display = (algo === 'wired' || algo === 'combined') ? '' : 'none';
+        }
+        if ((algo === 'wired' || algo === 'combined') && wiredModels.length > 0) {
+            fillSelect('param-table-wired', wiredModels, '有线模型');
+        }
 
         var clsGroup = Tools.$('table-cls-group');
         if (clsGroup) {
             clsGroup.style.display = (algo === 'combined') ? '' : 'none';
         }
         if (algo === 'combined' && modelData && modelData.tableClsModels) {
-            fillSelect('param-table-cls', modelData.tableClsModels, '类型检测模型');
+            fillSelect('param-table-cls', modelData.tableClsModels, '检测模型');
         }
     }
 
     function onModeChange() {
         var modeSel = Tools.$('param-mode');
-        var isTable = modeSel && modeSel.value === 'table';
+        var mode = modeSel ? modeSel.value : 'doc';
+        var isTable = mode === 'table';
+        var isPlate = mode === 'plate';
+        var fsText = Tools.$('fs-text');
         var fsLayout = Tools.$('fs-layout');
-        if (fsLayout) {
-            fsLayout.style.display = isTable ? 'none' : '';
-        }
+        var fsTable = Tools.$('fs-table');
+        var fsPlate = Tools.$('fs-plate');
+        if (fsText) fsText.style.display = isPlate ? 'none' : '';
+        if (fsLayout) fsLayout.style.display = (isTable || isPlate) ? 'none' : '';
+        if (fsTable) fsTable.style.display = isTable ? '' : 'none';
+        if (fsPlate) fsPlate.style.display = isPlate ? '' : 'none';
     }
 
     function initModelSelect() {
@@ -1010,6 +1163,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             onTableAlgoChange();
 
+            fillSelect('param-plate-model', resp.plateModels, '车牌模型');
+
             var clsModeSel = Tools.$('param-cls-mode');
             if (clsModeSel) clsModeSel.addEventListener('change', onClsModeChange);
             var layoutAlgoSel = Tools.$('param-layout-algo');
@@ -1020,7 +1175,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (modeSel) modeSel.addEventListener('change', onModeChange);
             onModeChange();
         }).catch(function (err) {
-            ['param-model', 'param-cls-mode', 'param-cls-model', 'param-layout-algo', 'param-layout', 'param-table-algo', 'param-table', 'param-table-cls'].forEach(function (id) {
+            ['param-model', 'param-cls-mode', 'param-cls-model', 'param-layout-algo', 'param-layout', 'param-table-algo', 'param-table-wireless', 'param-table-wired', 'param-table-cls', 'param-plate-model'].forEach(function (id) {
                 var sel = Tools.$(id);
                 if (sel) { sel.innerHTML = '<option value="">加载失败</option>'; }
             });
@@ -1052,6 +1207,19 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function initFieldsetCollapse() {
+        var legends = document.querySelectorAll('.ocr-fieldset .ocr-legend');
+        legends.forEach(function(legend) {
+            legend.addEventListener('click', function() {
+                var fieldset = legend.parentElement;
+                if (fieldset) {
+                    fieldset.classList.toggle('collapsed');
+                    legend.classList.toggle('collapsed');
+                }
+            });
+        });
+    }
+
     function init() {
         initDropZone();
         initAdvanced();
@@ -1059,6 +1227,7 @@ document.addEventListener('DOMContentLoaded', function () {
         initCrop();
         initModelSelect();
         initResultToolbar();
+        initFieldsetCollapse();
         Tools.$('btn-ocr').addEventListener('click', startOcr);
         Tools.$('btn-clear').addEventListener('click', clearAll);
     }

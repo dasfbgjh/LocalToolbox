@@ -1,6 +1,6 @@
 #include "LocalTools.h"
 #include "core/Server.h"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "core/Database.h"
 #include "common/App.h"
 #include "common/Config.h"
@@ -12,6 +12,7 @@
 #include "routes/MusicTool.h"
 #include "routes/SysMonitor.h"
 #include "routes/ADBTool.h"
+#include "routes/BatchOcrTool.h"
 
 #include <filesystem>
 #include <random>
@@ -1003,7 +1004,7 @@ void registerLocalTools( httplib::Server &svr ) {
     routes::music::registerMusicRoutes( svr );           // 注册音乐播放器路由
     routes::sysmonitor::registerSysMonitorRoutes( svr ); // 注册系统监测工具路由（仅限本机）
     routes::adb::registerADBRoutes( svr );               // 注册ADB工具工具路由（仅限本机）
-
+    routes::batchOcrTool::registerBatchOcrRoutes( svr ); // 注册批量OCR工具路由
     LOG_DEBUG << "本机工具路由已注册";
 }
 

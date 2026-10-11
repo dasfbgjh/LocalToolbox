@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <map>
 #include <mutex>
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "common/Logger.hpp"
 
 namespace routes::pdfTools {

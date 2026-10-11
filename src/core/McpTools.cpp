@@ -2,7 +2,7 @@
 #include "common/Config.h"
 #include "common/Logger.hpp"
 #include "common/EventLoop.h"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "resource.h"
 #include <httplib.h>
 #include <filesystem>

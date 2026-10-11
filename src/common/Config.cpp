@@ -1,6 +1,6 @@
 #include "Config.h"
 #include "Logger.hpp"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "core/Database.h"
 
 #ifdef _WIN32
@@ -8,8 +8,8 @@
 #define REG_PATH_AUTOBOOT "Software\\Microsoft\\Windows\\CurrentVersion\\Run"
 #define REG_PATH_CONTEXT_MENU_FILE "Software\\Classes\\*\\shell\\Toolbox"
 #define REG_PATH_CONTEXT_MENU_DIR "Software\\Classes\\Directory\\shell\\Toolbox"
-#define REG_KEY_NAME "Toolbox"
-#define REG_MENU_TEXT "工具箱"
+#define REG_KEY_NAME "LocalToolbox"
+#define REG_MENU_TEXT "本地工具箱"
 #endif
 
 // 不可配置项

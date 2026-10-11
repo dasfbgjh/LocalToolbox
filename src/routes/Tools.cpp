@@ -893,7 +893,7 @@ void toolCatalog( const httplib::Request &req, httplib::Response &res ) {
     pushTool( "image_converter", "image_converter.svg", { "image" }, "图片格式转换", "使用stb_image库转换图片格式",
               { "图片", "转换", "格式", "png", "jpg", "bmp", "image", "converter" }, "/tools/image_converter.html" );
 
-    pushTool( "image_ocr", "image_ocr.svg", { "image", "common" }, "图片OCR识别", "基于RapidOcr识别图片中的文字",
+    pushTool( "image_ocr", "image_ocr.svg", { "image", "common" }, "图片OCR识别", "基于AI识别图片中的文字",
               { "图片", "ocr", "文字识别", "光标识别", "rapidocr", "文字提取" }, "/tools/image_ocr.html" );
 
     pushTool( "image_watermark", "image_watermark.svg", { "image" }, "图片水印", "为图片添加文字水印",
@@ -1110,6 +1110,9 @@ void toolCatalog( const httplib::Request &req, httplib::Response &res ) {
 
         pushTool( "image-annotator", "image-annotator.svg", { "local", "image" }, "图片标注工具", "截屏图片标注工具，支持遮罩选区、绘制图形、添加文字、模糊、撤销恢复和保存导出",
                   { "图片", "标注", "绘图", "截图", "注释" }, "/tools/local/image_annotator.html" );
+
+        pushTool( "batch-ocr", "image_ocr.svg", { "local", "image" }, "图片批量OCR", "批量识别本地图片中的文字，结果合并输出为HTML文件",
+                  { "图片", "批量", "ocr", "文字识别", "批量识别" }, "/tools/local/batch_ocr.html" );
 
         pushTool( "music-player", "music-player.svg", { "local", "common" }, "音乐播放器", "扫描本机目录中的音频文件，支持合并/按目录浏览、歌词显示与内嵌封面",
                   { "音乐", "播放器", "music", "mp3", "flac", "歌词", "封面" }, "/tools/local/music_player.html" );

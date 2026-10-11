@@ -24,8 +24,7 @@ CMakeUserPresets.json
 /tmp
 /uploads
 /bin/test*
-/bin/Tools*
-/bin/tools*
+/bin/LocalToolbox*
 /bin/uploads
 /bin/temp
 /bin/database*

@@ -10,7 +10,7 @@
 #include <optional>
 #include <nlohmann/json.hpp>
 #include "resource.h"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "common/Logger.hpp"
 
 class Database {

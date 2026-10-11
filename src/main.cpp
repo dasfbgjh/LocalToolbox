@@ -5,7 +5,13 @@
 #include "common/EventLoop.h"
 
 int main( int argc, char *argv[] ) {
+#ifdef WIN32
+#if APP_BUILD_RELEASE == 1
     AppExtension::setOutputGBKCode( true );
+#else
+    system( "chcp 65001 >nul" );
+#endif
+#endif
 
     auto &logger = Logger::getInstance();
     logger.setOutputToConsole( true );

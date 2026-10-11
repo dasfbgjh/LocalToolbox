@@ -6,7 +6,6 @@
 namespace routes::ocrTools {
 
 void registerOcrRoutes( httplib::Server &svr );
-
 void shutdown();
 
 } // namespace routes::ocrTools

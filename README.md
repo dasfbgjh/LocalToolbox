@@ -1,11 +1,11 @@
-# Toolbox - 开发者工具箱
+# LocalToolbox - 开发者工具箱
 
 [![C++](https://img.shields.io/badge/C++-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![CMake](https://img.shields.io/badge/CMake-3.10+-green.svg)](https://cmake.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.0.1-orange.svg)](#)
+[![Version](https://img.shields.io/badge/Version-1.0.3-orange.svg)](#)
 
-一款面向开发者的综合性工具箱应用，集成了上百种实用工具，采用 C++ 后端 + Web 前端架构，通过 WebView 提供原生桌面体验。同时实现了 MCP (Model Context Protocol) 协议服务，可供 AI IDE 连接调用本地工具。
+一款面向开发者的综合性本地工具箱应用，集成了上百种实用工具，采用 C++ 后端 + Web 前端架构，通过 WebView 提供原生桌面体验。同时实现了 MCP (Model Context Protocol) 协议服务，可供 AI IDE 连接调用本地工具；并内置 MCP 客户端，可连接外部 MCP 服务进行调试。
 
 ## ✨ 功能特性
 
@@ -89,20 +89,25 @@
 - **系统监视器** - CPU/内存/磁盘/网络/GPU/电池实时监控（基于 hwinfo）
 - **批处理重命名** - 文件批量重命名工具
 - **FFmpeg 工具** - 音视频转码、下载（集成 yt-dlp）
-- **证书工具** - SSL/TLS 证书生成与管理
+- **证书工具** - SSL/TLS 证书生成与管理（基于 OpenSSL）
 - **文档阅读器** - 多源文档聚合浏览
 - **图片标注工具** - 截屏图片标注，支持遮罩选区、绘制图形、添加文字
-- **MCP 调试器** - MCP 协议服务调试工具
+- **音乐播放器** - 本地音乐库扫描、播放、封面/歌词提取、黑名单管理
+- **ADB 调试工具** - Android 设备调试，设备列表、端口转发、Shell、Logcat 过滤
+- **游戏启动器** - 内嵌 HTML5 游戏加载与运行（内置 HTTP 服务）
+- **MCP 调试器** - MCP 协议服务调试工具（内置 MCP 客户端，可连接外部 MCP 服务）
 
-### 🔌 MCP 服务端
-- 支持 Model Context Protocol (MCP)，可供 AI IDE（如 Trae）连接调用本地工具
-- 支持 Streamable HTTP 和 SSE 两种传输模式
-- 内置工具：echo、get_server_info、get_time、list_directory、read_text_file、run_shell_command 等
+### 🔌 MCP 服务
+- **服务端** - 支持 Model Context Protocol (MCP)，可供 AI IDE（如 Trae）连接调用本地工具
+  - 支持 Streamable HTTP 和 SSE 两种传输模式
+  - 内置工具：echo、get_server_info、get_time、list_directory、read_text_file、run_shell_command 等
+- **客户端** - 内置 MCP 客户端（`mcp::Client`），支持 Streamable HTTP / SSE / stdio 三种传输
+  - 用于 MCP 调试器连接外部 MCP 服务进行协议测试
 
 ## 🏗 项目架构
 
 ```
-Toolbox/
+LocalToolbox/
 ├── src/                          # C++ 后端源码
 │   ├── main.cpp                  # 程序入口
 │   ├── common/                   # 通用模块
@@ -121,6 +126,9 @@ Toolbox/
 │   │   ├── Sha256.cpp/h          # SHA256 哈希
 │   │   ├── McpCore.cpp/h         # MCP 协议数据结构与序列化
 │   │   ├── McpServer.cpp/h       # MCP 服务端引擎
+│   │   ├── McpClient.cpp/h       # MCP 客户端（连接外部 MCP 服务）
+│   │   ├── McpTools.cpp/h        # MCP 内置工具注册
+│   │   ├── CertGenerator.cpp/h   # SSL/TLS 证书生成（OpenSSL）
 │   │   ├── Auth.hpp              # 认证鉴权中间件
 │   │   └── Utils.cpp/h           # 工具函数
 │   └── routes/                   # API 路由
@@ -131,12 +139,15 @@ Toolbox/
 │       ├── FileService.cpp/h     # 文件服务接口
 │       ├── Tools.cpp/h           # 在线工具接口
 │       ├── PdfTools.cpp/h        # PDF 工具接口
-│       ├── LocalTools.cpp/h      # 本地工具接口
+│       ├── LocalTools.cpp/h      # 本地工具接口（聚合 cert/docs/music/sysmon/adb 子模块）
 │       ├── FfmpegTool.cpp/h      # FFmpeg 接口
 │       ├── CertTool.cpp/h        # 证书工具接口
 │       ├── DocTool.cpp/h         # 文档工具接口
 │       ├── SysMonitor.cpp/h      # 系统监控接口
 │       ├── OcrTools.cpp/h        # OCR 工具接口
+│       ├── ADBTool.cpp/h         # ADB 安卓调试接口
+│       ├── MusicTool.cpp/h       # 音乐播放器接口
+│       ├── GameTool.cpp/h        # 游戏启动器接口
 │       ├── Settings.cpp/h        # 用户设置接口
 │       └── Mcp.cpp/h             # MCP 协议接口
 ├── resource/                     # 前端资源
@@ -167,7 +178,7 @@ Toolbox/
 │       ├── generate.cpp          # 资源打包工具
 │       └── resource.cpp          # 资源嵌入
 ├── 3rdparty/                     # 第三方库
-│   ├── RapidOcr/                 # OCR 引擎
+│   ├── OnnxOCR/                  # OCR 引擎（ONNX Runtime 动态加载）
 │   ├── httplib/                  # C++ HTTP 库
 │   ├── hwinfo/                   # 硬件信息库
 │   ├── webview/                  # WebView 跨平台库
@@ -182,7 +193,7 @@ Toolbox/
 │   ├── include/                  # 扩展头文件
 │   └── output/                   # CMake 生成输出
 ├── bin/                          # 编译输出目录
-│   └── RapidOCR/                 # OCR 模型文件
+│   └── RapidOCR/                 # OCR 模型文件（由 OnnxOCR 动态加载）
 └── CMakeLists.txt                # 顶层构建脚本
 ```
 
@@ -204,7 +215,7 @@ Toolbox/
 ```bash
 # 1. 克隆项目
 git clone <repository-url>
-cd Toolbox
+cd LocalToolbox
 
 # 2. 创建构建目录
 mkdir build && cd build
@@ -216,7 +227,7 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ..
 cmake --build .
 
 # 5. 运行（输出在 bin/ 目录）
-../bin/Tools_v1.0.1.exe
+../bin/LocalToolbox.exe
 ```
 
 ### 依赖库说明
@@ -251,14 +262,16 @@ cmake --build .
 | `proc_env_vars` | 进程环境变量 |
 | `memos` | 备忘录数据 |
 | `doc_sources` | 文档阅读源配置 |
+| `music_sources` | 音乐扫描目录配置 |
+| `music_blacklist` | 音乐黑名单（被拉黑的歌曲不参与扫描/播放） |
 | `app_config` | 全局应用配置 |
 | `user_settings` | 用户个性化设置 |
 
 ### OCR 模型
 
-`bin/RapidOCR/` 目录下包含 OCR 模型文件：
+`bin/RapidOCR/` 目录下包含 OCR 模型文件，由 `3rdparty/OnnxOCR/` 中的动态加载器（`ocr_dynamic_loader.cpp`）在运行时加载：
 - `ch-mobile-v4/` - 移动端模型（轻量快速）
-- `RapidOcrOnnx.dll` - OCR 引擎运行时
+- `RapidOcrOnnx.dll` - OCR 引擎运行时（ONNX Runtime）
 
 模型目录包含：
 - `det.onnx` - 文本检测模型
@@ -268,7 +281,7 @@ cmake --build .
 
 ## 🖱 使用方式
 
-1. **启动应用**：双击 `Tools_v1.0.1.exe` 或命令行运行
+1. **启动应用**：双击 `LocalToolbox.exe` 或命令行运行
 2. **系统托盘**：应用启动后最小化至托盘，右键托盘图标可：
    - 打开主界面
    - 打开设置
@@ -279,7 +292,7 @@ cmake --build .
 ### 命令行参数
 
 ```
-Tools_v1.0.1.exe [OPTIONS] [PATH...]
+LocalToolbox.exe [OPTIONS] [PATH...]
 
 Options:
   -h,--help                           打印帮助信息
@@ -338,8 +351,8 @@ cmake --build .
 | [SQLite3](https://www.sqlite.org/) | 数据库存储 |
 | [Boost](https://www.boost.org/) | 进程管理 |
 | [OpenSSL](https://www.openssl.org/) | https 服务依赖 |
-| [RapidOCR](https://github.com/RapidAI/RapidOCR) | 图片 OCR 功能 |
-| [ONNX Runtime](https://onnxruntime.ai/) | RapidOCR 依赖 |
+| [RapidOCR](https://github.com/RapidAI/RapidOCR) | 图片 OCR 功能（模型与运行时 DLL） |
+| [ONNX Runtime](https://onnxruntime.ai/) | OCR 推理引擎（由 OnnxOCR 动态加载） |
 | [webview](https://github.com/webview/webview) | 提供 WebView 功能 |
 
 ### 前端库

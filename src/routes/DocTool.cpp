@@ -3,7 +3,7 @@
 #include "common/Logger.hpp"
 #include "core/Database.h"
 #include "core/Server.h"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "resource.h"
 
 #include <algorithm>

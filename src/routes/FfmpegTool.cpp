@@ -875,10 +875,6 @@ void FfmpegManager::startTask( FfmpegTask *task ) {
         return;
     }
     std::error_code ec;
-    if ( !fs::exists( ffmpegPath, ec ) ) {
-        finishTask( task->id, "failed", -1, "ffmpeg 不存在: " + ffmpegPath );
-        return;
-    }
     // URL 输入不校验本地存在
     if ( !isUrlInput( task->inputPath ) && !fs::exists( task->inputPath, ec ) ) {
         finishTask( task->id, "failed", -1, "输入文件不存在: " + task->inputPath );

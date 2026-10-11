@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
-project(Tools
-    VERSION 1.0.3
-    DESCRIPTION "Tools - A collection of useful tools for developers"
-    HOMEPAGE_URL "https://github.com/dasfbgjh/Tools"
+project(LocalToolbox
+    VERSION 1.0.4
+    DESCRIPTION "LocalToolbox - a collection of useful tools"
+    HOMEPAGE_URL "https://github.com/dasfbgjh/LocalToolbox"
 )
 
 set(CMAKE_CXX_STANDARD 17)
@@ -38,14 +38,14 @@ set(HWINFO_STATIC ON)
 add_subdirectory(3rdparty/hwinfo)
 
 # 导入资源文件
-set(RESOURCE_NAME_PREIFX tools)
+set(RESOURCE_NAME_PREIFX ${PROJECT_NAME})
 add_subdirectory(resource)
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(WIN_GUI WIN32)
 endif()
 
-set(APP_FILE_NAME ${PROJECT_NAME}_v${PROJECT_VERSION})
+set(APP_FILE_NAME ${PROJECT_NAME})
 add_executable(${APP_FILE_NAME} ${WIN_GUI}
     ${APPINFO_SRC}
     src/main.cpp
@@ -53,10 +53,10 @@ add_executable(${APP_FILE_NAME} ${WIN_GUI}
     src/common/Config.cpp
     src/common/SystemTray.cpp
     src/common/EventLoop.cpp
+    src/common/Utils.cpp
     src/core/Server.cpp
     src/core/Sha256.cpp
     src/core/TransferTracker.cpp
-    src/core/Utils.cpp
     src/core/Database.cpp
     src/core/HttpServerManager.cpp
     src/core/ProcManager.cpp
@@ -83,6 +83,8 @@ add_executable(${APP_FILE_NAME} ${WIN_GUI}
     src/routes/GameTool.cpp
     src/routes/SysMonitor.cpp
     src/routes/OcrTools.cpp
+    src/routes/BatchOcrTool.cpp
+    src/core/OcrEngine.cpp
     src/routes/Mcp.cpp
     3rdparty/qrcodegen/qrcodegen.cpp
     3rdparty/OnnxOCR/ocr_dynamic_loader.cpp

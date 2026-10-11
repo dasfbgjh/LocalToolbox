@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "core/Server.h"
 
 namespace routes::ffmpeg {

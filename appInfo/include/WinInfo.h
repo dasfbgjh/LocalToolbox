@@ -4,15 +4,15 @@
 // file encoding GBK 2312
 
 // 公司名
-#define COMPANY_NAME ""
+#define COMPANY_NAME "LocalToolbox"
 // 文件说明
-#define FILE_DESCRIPTION "-----------"
+#define FILE_DESCRIPTION "本地工具箱"
 // 内部名
-#define INTERNAL_NAME ""
+#define INTERNAL_NAME "LocalToolbox"
 // 原始文件名
-#define ORIGINAL_FILE_NAME "Tools.exe"
+#define ORIGINAL_FILE_NAME "LocalToolbox.exe"
 // 产品名
-#define PRODUCT_NAME "Tools"
+#define PRODUCT_NAME "LocalToolbox"
 // 版权
 #define LEGAL_COPYRIGHT ""
 

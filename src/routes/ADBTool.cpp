@@ -271,6 +271,84 @@ static void adbShell( const httplib::Request &req, httplib::Response &res ) {
     Server::sendJson( res, j );
 }
 
+static void adbLogcat( const httplib::Request &req, httplib::Response &res ) {
+    if ( Server::guardLocalhost( req, res ) )
+        return;
+    std::string serial = Server::queryParam( req, "serial" );
+    std::string tag = Server::queryParam( req, "tag" );
+    std::string level = Server::queryParam( req, "level" );
+    std::string pid = Server::queryParam( req, "pid" );
+    std::string package = Server::queryParam( req, "package" );
+    std::string linesStr = Server::queryParam( req, "lines" );
+    int lines = 200;
+    if ( !linesStr.empty() ) {
+        try { lines = std::stoi( linesStr ); } catch ( ... ) { lines = 200; }
+        if ( lines <= 0 ) lines = 200;
+        if ( lines > 5000 ) lines = 5000;
+    }
+
+    std::vector<std::string> args;
+    if ( !serial.empty() )
+        args.push_back( "-s" ), args.push_back( serial );
+
+    args.push_back( "logcat" );
+    args.push_back( "-d" );
+
+    if ( lines > 0 )
+        args.push_back( "-t" ), args.push_back( std::to_string( lines ) );
+
+    if ( !pid.empty() )
+        args.push_back( "--pid=" + pid );
+
+    std::string formatFilter;
+    if ( !tag.empty() && !level.empty() ) {
+        formatFilter = tag + ":" + level;
+    } else if ( !level.empty() ) {
+        std::string lvl = level;
+        if ( lvl.size() == 1 )
+            lvl = std::string( 1, (char)toupper( lvl[0] ) );
+        formatFilter = "*:" + lvl;
+    } else if ( !tag.empty() ) {
+        formatFilter = tag + ":V";
+    }
+
+    if ( !package.empty() && pid.empty() ) {
+        std::vector<std::string> pidArgs;
+        if ( !serial.empty() )
+            pidArgs = { "-s", serial, "shell", "pidof", package };
+        else
+            pidArgs = { "shell", "pidof", package };
+        auto pidResult = adbExec( pidArgs );
+        if ( pidResult["success"].get<bool>() ) {
+            std::string pkgPid = adbTrim( pidResult["output"].get<std::string>() );
+            if ( !pkgPid.empty() )
+                args.push_back( "--pid=" + pkgPid );
+        }
+    }
+
+    if ( !formatFilter.empty() )
+        args.push_back( formatFilter );
+
+    auto j = adbExec( args );
+    Server::sendJson( res, j );
+}
+
+static void adbLogcatClear( const httplib::Request &req, httplib::Response &res ) {
+    if ( Server::guardLocalhost( req, res ) )
+        return;
+    auto body = Server::parseBody( req );
+    std::string serial;
+    if ( body.is_object() && body.contains( "serial" ) && body["serial"].is_string() )
+        serial = body["serial"].get<std::string>();
+    std::vector<std::string> args;
+    if ( !serial.empty() )
+        args = { "-s", serial, "logcat", "-c" };
+    else
+        args = { "logcat", "-c" };
+    auto j = adbExec( args );
+    Server::sendJson( res, j );
+}
+
 void registerADBRoutes( httplib::Server &svr ) {
     svr.Get( "/api/local/adb/info", adbInfo );
     svr.Get( "/api/local/adb/devices", adbDevices );
@@ -281,5 +359,7 @@ void registerADBRoutes( httplib::Server &svr ) {
     svr.Post( "/api/local/adb/forward/remove", adbForwardRemove );
     svr.Post( "/api/local/adb/forward/removeAll", adbForwardRemoveAll );
     svr.Post( "/api/local/adb/shell", adbShell );
+    svr.Get( "/api/local/adb/logcat", adbLogcat );
+    svr.Post( "/api/local/adb/logcat/clear", adbLogcatClear );
 }
 } // namespace routes::adb

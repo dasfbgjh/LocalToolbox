@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <system_error>
 #include "core/Auth.hpp"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "core/Database.h"
 #include "common/App.h"
 #include "common/Config.h"

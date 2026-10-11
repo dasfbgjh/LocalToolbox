@@ -363,3 +363,112 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+.adb-logcat-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.875rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.adb-logcat-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.adb-logcat-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: flex-end;
+}
+
+.adb-logcat-filter-row .adb-field {
+    flex: 1;
+    min-width: 8rem;
+}
+
+.adb-logcat-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.adb-logcat-output {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    font-family: ui-monospace, monospace;
+    font-size: 0.6875rem;
+    color: var(--text);
+    min-height: 12rem;
+    max-height: 36rem;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
+.adb-logcat-line {
+    display: flex;
+    gap: 0.375rem;
+    padding: 0.0625rem 0;
+    white-space: nowrap;
+}
+
+.adb-logcat-line:hover {
+    background: var(--bg-muted);
+}
+
+.adb-logcat-line .log-time {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 10.5rem;
+}
+
+.adb-logcat-line .log-level {
+    flex-shrink: 0;
+    font-weight: 700;
+    min-width: 0.75rem;
+    text-align: center;
+}
+
+.adb-logcat-line .log-pid {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 3.5rem;
+    text-align: right;
+}
+
+.adb-logcat-line .log-tag {
+    flex-shrink: 0;
+    font-weight: 600;
+    min-width: 0;
+    max-width: 14rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adb-logcat-line .log-msg {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
+}
+
+.adb-logcat-line[data-level="E"] {
+    background: rgba(244, 67, 54, 0.06);
+}
+
+.adb-logcat-line[data-level="F"] {
+    background: rgba(233, 30, 99, 0.08);
+}
+
+.adb-logcat-line[data-level="W"] {
+    background: rgba(255, 152, 0, 0.05);
+}

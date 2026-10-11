@@ -9,7 +9,7 @@
 
 // APP名称
 #define APP_NAME_CODE "${APP_NAME_CODE}"
-#define APP_NAME "Tools"
+#define APP_NAME "本地工具箱"
 #define APP_DESCRIPTION "${PROJECT_DESCRIPTION}"
 
 // APP开发组织

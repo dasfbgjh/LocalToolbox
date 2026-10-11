@@ -1,8 +1,9 @@
 #include "routes/GameTool.h"
 #include "common/App.h"
+#include "common/Config.h"
 #include "common/Logger.hpp"
 #include "core/Server.h"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "resource.h"
 
 #include <algorithm>

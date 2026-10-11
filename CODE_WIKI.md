@@ -1,6 +1,6 @@
-# Tools 项目 Code Wiki
+# LocalToolbox 项目 Code Wiki
 
-> **版本**: v1.0.1  
+> **版本**: v1.0.3  
 > **语言**: C++17 + JavaScript  
 > **构建工具**: CMake 3.10+  
 > **许可证**: MIT  
@@ -29,7 +29,7 @@
 
 ## 1. 项目概述
 
-**Tools** 是一款面向开发者的综合性工具箱桌面应用，采用 **C++ 后端 + Web 前端** 的混合架构，通过 **WebView** 提供原生桌面体验。应用集成了 **100+ 在线开发小工具** 以及 **系统级本地工具**（HTTP 文件服务器、进程管理器、系统监视器等），同时实现了团队协作功能（剪贴板共享、文件分享）和 MCP (Model Context Protocol) 协议服务。
+**LocalToolbox** 是一款面向开发者的综合性本地工具箱桌面应用，采用 **C++ 后端 + Web 前端** 的混合架构，通过 **WebView** 提供原生桌面体验。应用集成了 **100+ 在线开发小工具** 以及 **系统级本地工具**（HTTP 文件服务器、进程管理器、系统监视器、音乐播放器、ADB 调试、游戏启动器等），同时实现了团队协作功能（剪贴板共享、文件分享）和 MCP (Model Context Protocol) 协议服务（含服务端与客户端）。
 
 ### 核心功能领域
 
@@ -39,8 +39,8 @@
 | 📋 团队剪贴板 | 多人协作剪贴板、文本/HTML/图片/文件历史、邀请码机制 |
 | 📁 文件分享服务 | 文件/目录分享、细粒度权限控制（访问/下载/上传/删除/重命名） |
 | 🛠 在线小工具(100+) | 文本处理、编码转换、加密安全、网络工具、开发辅助、计算工具、图片处理、PDF 工具 |
-| 💻 本地系统工具 | HTTP 服务器管理、进程管理器、系统监视器、批处理重命名、FFmpeg、证书管理、文档阅读、OCR 识别、图片标注、MCP 调试器 |
-| 🔌 MCP 服务端 | 支持 Model Context Protocol，可供 AI IDE（如 Trae）连接调用本地工具 |
+| 💻 本地系统工具 | HTTP 服务器管理、进程管理器、系统监视器、批处理重命名、FFmpeg、证书管理、文档阅读、OCR 识别、图片标注、音乐播放器、ADB 调试、游戏启动器、MCP 调试器 |
+| 🔌 MCP 服务 | 服务端（供 AI IDE 调用本地工具）+ 客户端（连接外部 MCP 服务调试） |
 
 ---
 
@@ -125,8 +125,8 @@ main()
 d:\project\cmake\Tools\
 │
 ├── 3rdparty/                      # 第三方库源码（直接嵌入编译）
-│   ├── RapidOcr/                  # OCR 引擎 C API (RapidOCR)
-│   │   └── include/OcrLiteCApi.h
+│   ├── OnnxOCR/                   # OCR 引擎（ONNX Runtime 动态加载器）
+│   │   └── ocr_dynamic_loader.cpp # 运行时加载 RapidOcrOnnx.dll
 │   ├── cli11/                     # 命令行解析库 (header-only)
 │   │   └── CLI11.hpp
 │   ├── httplib/                   # C++ HTTP 服务器/客户端库
@@ -156,11 +156,11 @@ d:\project\cmake\Tools\
 │       └── WinInfo.h              # Windows 版本信息
 │
 ├── bin/                           # 编译输出与运行时目录
-│   ├── RapidOCR/                  # OCR 模型文件与 DLL
+│   ├── RapidOCR/                  # OCR 模型文件与 DLL（由 OnnxOCR 动态加载）
 │   │   ├── ch-mobile-v4/{det,cls,rec}.onnx, keys.txt
 │   │   └── RapidOcrOnnx.dll
 │   ├── pdf_tool.exe               # PDF 处理外部工具
-│   └── Tools_v1.0.1.exe           # 主程序 (CMake 生成)
+│   └── LocalToolbox               # 主程序 (CMake 生成)
 │
 ├── resource/                      # 前端资源与资源打包系统
 │   ├── CMakeLists.txt             # 资源编译：生成 tools_resource 静态库
@@ -186,6 +186,9 @@ d:\project\cmake\Tools\
 │   │   ├── Database.h/cpp         # SQLite3 封装
 │   │   ├── McpCore.h/cpp          # MCP 协议数据结构与序列化
 │   │   ├── McpServer.h/cpp        # MCP 服务端引擎：工具/资源注册与调度
+│   │   ├── McpClient.h/cpp        # MCP 客户端：连接外部 MCP 服务（HTTP/SSE/stdio）
+│   │   ├── McpTools.h/cpp         # MCP 内置工具注册（echo/get_time/list_directory 等）
+│   │   ├── CertGenerator.h/cpp    # SSL/TLS 证书生成（OpenSSL 原生 API）
 │   │   ├── WebviewWrapper.h/cpp   # WebView 生命周期与 JS 绑定
 │   │   ├── HttpServerManager.h/cpp # 多实例 HTTP 文件服务器管理
 │   │   ├── ProcManager.h/cpp      # 进程管理器：启动/监控/日志环形缓冲
@@ -206,7 +209,10 @@ d:\project\cmake\Tools\
     ├── CertTool.h/cpp         # /api/cert/*     SSL/TLS 证书工具
     ├── DocTool.h/cpp          # /api/docs/*     文档聚合阅读器
     ├── SysMonitor.h/cpp       # /api/local/sysmon/* 系统监控
-    ├── LocalTools.h/cpp       # /api/local/*    本地工具（进程/HTTP服务器等）
+    ├── ADBTool.h/cpp          # /api/local/adb/* ADB 安卓调试工具
+    ├── MusicTool.h/cpp        # /api/local/music/* 音乐播放器
+    ├── GameTool.h/cpp         # /api/game/*     游戏启动器（内置 HTTP 服务）
+    ├── LocalTools.h/cpp       # /api/local/*    本地工具（聚合 cert/docs/music/sysmon/adb 子模块）
     ├── Mcp.h/cpp              # /mcp            MCP 协议 HTTP 端点
     └── Settings.h/cpp         # /api/settings/* 用户/全局设置
 │
@@ -232,7 +238,7 @@ d:\project\cmake\Tools\
 **输出位置**: 所有可执行文件输出到 `${CMAKE_SOURCE_DIR}/bin/`
 
 **可执行目标**:
-- `Tools_v1.0.1` - 主程序（Release 模式加 `WIN32` 标志，无控制台窗口）
+- `LocalToolbox` - 主程序（Release 模式加 `WIN32` 标志，无控制台窗口）
 - `test` - 测试程序（独立测试目标）
 
 **静态链接**: Release 模式下启用 `-static-libstdc++ -static-libgcc -static`，生成独立运行的 exe。
@@ -257,7 +263,7 @@ resource/data/html/*  ──► generate.exe ──► data.h (字节数组)
 resource.cpp 包含 resource_get()  ──► tools_resource 静态库
                                             │
                                             ▼
-                                    Tools_v1.0.1.exe 直接链接
+                                    LocalToolbox 直接链接
 ```
 
 API:
@@ -278,7 +284,7 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/gcc.exe \
       -DCMAKE_CXX_COMPILER=C:/msys64/mingw64/bin/g++.exe ..
 cmake --build .
-# 输出: ../bin/Tools_v1.0.1.exe
+# 输出: ../bin/LocalToolbox
 ```
 
 Debug 模式（修改前端无需重编译资源）:
@@ -361,10 +367,11 @@ cmake --build .
 | `maxUploadFileSize` | size_t | 最大上传文件大小 |
 | `maxPdfSize` | size_t | PDF 文件大小上限 |
 | `inviteCodeDurationSEC` | int | 团队邀请码有效期（秒） |
+| `onlyLocalhost` | bool | 是否仅允许本机访问（pre_routing_handler 中强制 localhost 守卫） |
 | `logLevel` | int | 0=DEBUG 1=INFO 2=WARN 3=ERROR |
 | `logFileMode` | int | 0=OFF 1=SINGLE_FILE 2=MULTI_FILE |
 | `logFilePath` | string | 日志文件路径 |
-| `pdfToolPath` / `ffmpegPath` / `opensslPath` | string | 外部工具路径 |
+| `pdfToolPath` / `ffmpegPath` / `adbPath` | string | 外部工具路径（PDF / FFmpeg / ADB） |
 | `bootParameter` | `vector<string>` | 启动参数 |
 
 **关键方法**:
@@ -454,19 +461,20 @@ void exit();    // 发送 WM_QUIT 终止托盘消息循环
 
 **路由注册顺序** (在 `registerhRoutes()` 中):
 ```
-0. set_pre_routing_handler   → 全局请求日志
+0. set_pre_routing_handler   → 全局请求日志 + 可选 localhost 守卫（受 Config::getOnlyLocalhost 控制）
 1. routes::admin             → /api/admin/*
-2. routes::localTools        → /api/local/* (localhost guard)
-3. routes::auth              → /api/auth/*
-4. routes::teams             → /api/teams/*
-5. routes::clipboard         → /api/clipboard/*
-6. routes::fileService       → /api/fileservice/*
-7. routes::tools             → /api/tools/*
-8. routes::ocrTools          → /api/ocr/*
-9. routes::pdfTools          → /api/pdf/*
-10. routes::ffmpeg           → /api/ffmpeg/*
-11. routes::settings         → /api/settings/*
-12. routes::mcp              → /mcp + /api/local/mcp_debug
+2. routes::auth              → /api/auth/*
+3. routes::teams             → /api/teams/*
+4. routes::clipboard         → /api/clipboard/*
+5. routes::fileService       → /api/fileservice/*
+6. routes::tools             → /api/tools/* （内部并调用 routes::localTools::registerLocalTools
+                                  注册 /api/local/* 全部本机工具路由，含 cert/docs/music/sysmon/adb 子模块）
+7. routes::ocrTools          → /api/ocr/*
+8. routes::pdfTools          → /api/pdf/*
+9. routes::ffmpeg            → /api/ffmpeg/*
+10. routes::settings         → /api/settings/*
+11. routes::mcpRoutes        → /mcp + /api/local/mcp_debug
+12. routes::game             → /api/game/* （游戏启动器，内置 HTTP 服务）
 13. GET /webview             → WebView 容器页面（动态调用 __windowPage）
 14. GET /.well-known/...     → Chrome DevTools 工作区探测
 15. GET /(.*) catch-all      → 静态资源服务（最后注册）
@@ -668,6 +676,69 @@ using Rows = std::vector<Row>;                    // 多行
 
 ---
 
+#### 5.2.8 McpClient ([McpClient.h](file:///d:/project/cmake/Tools/src/core/McpClient.h), [McpClient.cpp](file:///d:/project/cmake/Tools/src/core/McpClient.cpp))
+
+**职责**: MCP 协议客户端，连接外部 MCP 服务端进行工具调用/资源读取/提示获取。与服务端 `McpServer` 对称，复用 `McpCore` 的数据结构。
+
+**传输层抽象 (`Transport`)**:
+- `createHttpTransport(HttpOptions)` - Streamable HTTP 传输（可选 legacy SSE 模式）
+- `createStdioTransport(StdioOptions)` - 启动子进程经 stdin/stdout 交换换行分隔的 JSON-RPC
+- 自定义传输可实现 `Transport` 接口注入
+
+**高级 API**:
+| 方法 | 说明 |
+|------|------|
+| `initialize()` | 执行 initialize 握手 + 自动发送 notifications/initialized |
+| `ping()` | 心跳 |
+| `listTools()` / `callTool(name, args)` | 工具列表与调用 |
+| `listResources()` / `readResource(uri)` | 资源列表与读取 |
+| `listPrompts()` / `getPrompt(name, args)` | 提示模板 |
+| `setLoggingLevel(level)` | 设置服务端日志级别 |
+| `complete(params)` | 补全建议 |
+
+**回调注册**: `setRootsProvider` / `setSamplingHandler` / `setNotificationHandler` / `setServerRequestHandler`（处理服务端发起的请求如 roots/list、sampling/createMessage）。
+
+**错误模型**: 传输/HTTP 错误及 JSON-RPC 错误统一抛 `Client::Error`；工具调用错误通过返回值的 `isError` 字段表达，不抛异常。
+
+**用途**: MCP 调试器（`/api/local/mcp_debug`）使用 McpClient 连接用户指定的目标 MCP 服务，完成握手 → 列工具 → 调用工具的全流程诊断。
+
+---
+
+#### 5.2.9 McpTools ([McpTools.h](file:///d:/project/cmake/Tools/src/core/McpTools.h), [McpTools.cpp](file:///d:/project/cmake/Tools/src/core/McpTools.cpp))
+
+**职责**: 向 `McpServer` 注册内置工具的统一入口，由 `mcpTools::registerTools(McpServer&)` 一次性注册全部内置工具。
+
+**已注册的内置工具**:
+1. `echo` - 参数回显
+2. `get_server_info` - 返回服务端运行信息
+3. `get_time` - 当前时间戳
+4. `list_directory` - 列目录
+5. `mcp_debug` - MCP 自身诊断报告
+6. `read_text_file` - 读取文本文件
+7. `run_shell_command` - 执行 Shell 命令（高风险，受 localhost guard 保护）
+
+---
+
+#### 5.2.10 CertGenerator ([CertGenerator.h](file:///d:/project/cmake/Tools/src/core/CertGenerator.h), [CertGenerator.cpp](file:///d:/project/cmake/Tools/src/core/CertGenerator.cpp))
+
+**职责**: 基于 OpenSSL 原生 API 生成自签名 SSL/TLS 证书，供 `routes::cert` 路由调用。
+
+**参数 (`CertParams`)**:
+| 字段 | 说明 |
+|------|------|
+| `commonName` / `organization` / `organizationalUnit` | 证书主体 |
+| `country` / `state` / `locality` | 地理信息 |
+| `days` | 有效期（默认 365） |
+| `keyBits` | 密钥位数（默认 2048） |
+| `altNamesIp` / `altNamesDns` | SAN 扩展（IP/DNS 别名列表） |
+
+**API**:
+- `isOpensslAvailable()` - 检查 OpenSSL 可用性
+- `getOpensslVersion()` - 获取版本字符串
+- `generate(params, outputDir, baseName, overwrite)` - 生成证书，返回 `CertResult{success, error, certPath, keyPath}`
+
+---
+
 ### 5.3 routes 模块 - API 路由层
 
 每个路由文件暴露一个命名空间函数 `registerXxxRoutes(httplib::Server& svr)`，在 `Server::registerhRoutes()` 中按序调用。
@@ -786,7 +857,7 @@ share_id 关联 subject_type:
 
 #### 5.3.7 OcrTools 路由 (`/api/ocr/*`)
 
-调用 `bin/RapidOCR/RapidOcrOnnx.dll` + 模型文件：
+通过 `3rdparty/OnnxOCR/ocr_dynamic_loader.cpp` 动态加载 `bin/RapidOCR/RapidOcrOnnx.dll` + 模型文件：
 - `POST /ocr/recognize` - FormData 图片 → 返回 JSON 数组 `[{text, confidence, box:{x,y,w,h}}]`
 - 支持中英文识别，模型目录：`ch-mobile-v4/`（轻量快速）
 
@@ -808,7 +879,7 @@ FFmpeg 管理器（`FfmpegManager` 单例，类似 ProcManager）：
 
 #### 5.3.9 LocalTools 路由 (`/api/local/*`)
 
-**全部受 `Server::guardLocalhost` 保护，仅限本机调用**。
+**全部受 `Server::guardLocalhost` 保护，仅限本机调用**。由 `routes::tools::registerToolRoutes()` 内部调用 `routes::localTools::registerLocalTools()` 注册。
 
 | 子路径 | 说明 |
 |--------|------|
@@ -818,12 +889,37 @@ FFmpeg 管理器（`FfmpegManager` 单例，类似 ProcManager）：
 | `/local/http/servers/*` | HttpServerManager 的 CRUD + start/stop + status |
 | `/local/procs/*` | ProcManager 的 CRUD + start/stop + logs 流 |
 | `/local/memos/*` | 备忘录 CRUD |
-| `/local/mcp_debug/*` | MCP 调试器代理接口（详见第 8 节） |
+| `/local/mcp_debug` | MCP 调试器代理接口（使用 McpClient 连接目标 MCP 服务，详见第 8 节） |
 
 此外，LocalTools 内部还注册了以下子模块路由（同样受 localhost 保护）：
-- `routes::cert::registerCertRoutes()` - 自签名证书工具
+- `routes::cert::registerCertRoutes()` - 自签名证书工具（依赖 `CertGenerator` + OpenSSL）
 - `routes::docs::registerDocRoutes()` - 文档聚合阅读器
+- `routes::music::registerMusicRoutes()` - 音乐播放器（扫描/播放/封面/歌词/黑名单）
 - `routes::sysmonitor::registerSysMonitorRoutes()` - 系统监控实时数据
+- `routes::adb::registerADBRoutes()` - ADB 安卓调试工具
+
+**音乐播放器 API** (`/api/local/music/*`):
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/local/music/sources` | 列出扫描目录（music_sources 表） |
+| POST | `/local/music/sources` | 新增扫描目录 |
+| DELETE | `/local/music/sources/:id` | 删除扫描目录 |
+| GET | `/local/music/scan?sourceId=` | 扫描目录下音频文件（mp3/flac/wav/ogg/m4a/aac/opus/wma/ape/wv） |
+| GET | `/local/music/audio?path=` | 流式音频（支持 Range） |
+| GET | `/local/music/cover?path=` | 提取内嵌封面（ID3v2/FLAC/M4A） |
+| GET | `/local/music/lyrics?path=` | 提取歌词 |
+| GET/POST/DELETE | `/local/music/blacklist` | 黑名单管理（music_blacklist 表） |
+
+**ADB 调试工具 API** (`/api/local/adb/*`):
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/local/adb/info` | ADB 版本信息（依赖 `Config::getAdbPath()`） |
+| GET | `/local/adb/devices` | 设备列表 |
+| POST | `/local/adb/connect` / `disconnect` | 连接/断开设备 |
+| GET/POST | `/local/adb/forward/*` | 端口转发管理（list/add/remove/removeAll） |
+| POST | `/local/adb/shell` | 执行 shell 命令 |
+| GET | `/local/adb/logcat` | Logcat 日志（支持 tag/level/pid/package 过滤） |
+| POST | `/local/adb/logcat/clear` | 清空 logcat |
 
 系统监控数据流：
 ```
@@ -838,7 +934,21 @@ GET /api/local/sysmon/now 返回单帧；GET /api/local/sysmon/stream?since= 返
 
 ---
 
-#### 5.3.10 Mcp 路由
+#### 5.3.10 Game 路由 (`/api/game/*`)
+
+游戏启动器，扫描内嵌资源（`/games`、`/games1`）与磁盘目录（`<exeDir>/games`）下的 HTML5 游戏，并启动内置 HTTP 服务供游戏加载运行。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/game/list` | 列出可用的游戏条目（id/name/entryFile） |
+| POST | `/game/start` | 启动游戏 HTTP 服务（独立端口） |
+| GET | `/game/status` | 查询游戏服务运行状态 |
+
+应用退出时调用 `shutdownGameHttpServer()` 清理资源。
+
+---
+
+#### 5.3.11 Mcp 路由
 
 独立章节（第 8 节）详述。
 
@@ -895,7 +1005,9 @@ GET /api/local/sysmon/now 返回单帧；GET /api/local/sysmon/stream?since= 返
 | 表名 | 主键 | 核心字段 | 说明 |
 |------|------|----------|------|
 | **memos** | id | title, content, timestamps | 内置备忘录，索引 `idx_memos_updated` |
-| **doc_sources** | id | name(UNIQUE), path, timestamps | 文档聚合阅读源配置 |
+| **doc_sources** | id | name(UNIQUE), path, timestamps | 文档聚合阅读源配置，索引 `idx_doc_sources_updated` |
+| **music_sources** | id | name, path, timestamps | 音乐扫描目录配置，索引 `idx_music_sources_updated` |
+| **music_blacklist** | id | source_id→FK, path, created_at | 音乐黑名单（被拉黑的歌曲不参与扫描/播放），UNIQUE(source_id, path) |
 
 ---
 
@@ -1030,7 +1142,10 @@ resource/data/html/
 │   │   ├── cert_tool.html
 │   │   ├── docs.{html,js,css}
 │   │   ├── image_annotator.{html,js,css}
+│   │   ├── music_player.{html,js,css}
+│   │   ├── adb_tool.{html,js,css}
 │   │   └── mcp_debug.{html,js,css}
+│   ├── game.html       # 游戏启动器页面
 │   └── *.html / *.js   # 各在线工具页面
 │
 ├── lib/                # 前端第三方库
@@ -1041,8 +1156,6 @@ resource/data/html/
 ├── webview/             # WebView 容器页面
 │   ├── index.html
 │   └── window.html
-│
-└── localsend*.html     # 临时/实验性页面
 ```
 
 ### 7.5 100+ 在线小工具分类
@@ -1079,8 +1192,10 @@ MCP (Model Context Protocol) 是基于 **JSON-RPC 2.0** 的协议，允许 AI �
 | 文件 | 职责 |
 |------|------|
 | [src/core/McpCore.h](file:///d:/project/cmake/Tools/src/core/McpCore.h) + `.cpp` | 协议层：JSON-RPC 数据结构、序列化/反序列化、错误码、方法常量、类型定义 |
-| [src/core/McpServer.h](file:///d:/project/cmake/Tools/src/core/McpServer.h) + `.cpp` | 引擎层：ServerCapabilities 声明、Tool/Resource/Prompt 注册表、请求分派与响应生成 |
-| [src/routes/Mcp.h](file:///d:/project/cmake/Tools/src/routes/Mcp.h) + `.cpp` | HTTP 传输层：Streamable HTTP (POST /mcp) + SSE (GET /mcp → POST /mcp/:session_id) + Debug 代理 |
+| [src/core/McpServer.h](file:///d:/project/cmake/Tools/src/core/McpServer.h) + `.cpp` | 服务端引擎：ServerCapabilities 声明、Tool/Resource/Prompt 注册表、请求分派与响应生成 |
+| [src/core/McpClient.h](file:///d:/project/cmake/Tools/src/core/McpClient.h) + `.cpp` | 客户端引擎：连接外部 MCP 服务，支持 HTTP/SSE/stdio 传输，提供强类型高级 API（详见 5.2.8） |
+| [src/core/McpTools.h](file:///d:/project/cmake/Tools/src/core/McpTools.h) + `.cpp` | 内置工具注册：`mcpTools::registerTools()` 一次性注册 echo/get_time/list_directory 等内置工具（详见 5.2.9） |
+| [src/routes/Mcp.h](file:///d:/project/cmake/Tools/src/routes/Mcp.h) + `.cpp` | HTTP 传输层：Streamable HTTP (POST /mcp) + SSE (GET /mcp → POST /mcp/:session_id) + Debug 代理（使用 McpClient） |
 
 ### 8.3 McpCore 数据结构
 
@@ -1158,14 +1273,7 @@ mcp.setCanceller([](RequestId){ /* 取消长耗时调用 */ });
 | `sampling/createMessage` | （可选） | 模型采样结果 |
 | `completion/complete` | 转调 CompletionHandler | 补全建议 |
 
-**已注册的内置工具**:
-1. `echo` - 参数回显
-2. `get_server_info` - 返回服务端运行信息
-3. `get_time` - 当前时间戳
-4. `list_directory` - 列目录
-5. `mcp_debug` - MCP 自身诊断报告
-6. `read_text_file` - 读取文本文件
-7. `run_shell_command` - 执行 Shell 命令（高风险，受 localhost guard 保护）
+**已注册的内置工具**: 由 `mcpTools::registerTools()` 统一注册（详见 5.2.9），包含 echo、get_server_info、get_time、list_directory、mcp_debug、read_text_file、run_shell_command。
 
 ### 8.5 HTTP 传输层
 
@@ -1202,11 +1310,11 @@ std::map<std::string, SseSession> g_sseSessions;
 
 ### 8.6 MCP 调试器 (`mcp_debug.html` + `/api/local/mcp_debug`)
 
-前端页面 `tools/local/mcp_debug.html` 提供图形化 MCP 调试器：
-- 支持手动选择传输模式（Streamable HTTP / SSE）
+前端页面 `tools/local/mcp_debug.html` 提供图形化 MCP 调试器，底层使用 `mcp::Client`（McpClient，详见 5.2.8）连接用户指定的目标 MCP 服务：
+- 支持手动选择传输模式（Streamable HTTP / SSE / stdio）
 - 模拟 initialize → 列出所有工具 → 调用单个工具
 - 查看完整请求/响应日志和 JSON-RPC 帧序列
-- 后端代理端点 `/api/local/mcp_debug`（受 `guardLocalhost` 保护）绕过 JSON-RPC 包装直接跑诊断（`runMcpDebugReport`）
+- 后端代理端点 `/api/local/mcp_debug`（受 `guardLocalhost` 保护）使用 McpClient 建立连接并跑完整诊断流程（`runMcpDebugReport`）
 
 ---
 
@@ -1229,7 +1337,8 @@ std::map<std::string, SseSession> g_sseSessions;
 | **WebView2 SDK** | `3rdparty/webview2/include/*.h` | Windows Edge WebView2 原生头 | 头文件（运行时需预装 WebView2 Runtime） |
 | **STB** | `3rdparty/stb/stb_image.h` 等 | 图片解码/编码/字体渲染 | single-header（定义 `STB_*_IMPLEMENTATION`） |
 | **qrcodegen** | `3rdparty/qrcodegen/` | 二维码生成 | 源码级嵌入编译 |
-| **RapidOCR** | `bin/RapidOCR/` + `3rdparty/RapidOcr/include/OcrLiteCApi.h` | 中英文 OCR（ONNX Runtime） | 运行时 DLL 加载 |
+| **RapidOCR** | `bin/RapidOCR/`（模型文件 + `RapidOcrOnnx.dll`） | 中英文 OCR 模型与运行时 | 运行时 DLL 加载 |
+| **OnnxOCR** | `3rdparty/OnnxOCR/ocr_dynamic_loader.cpp` | OCR 动态加载器 | 源码级嵌入编译 |
 | **ONNX Runtime** | RapidOCR 依赖 | 推理引擎 | 随 RapidOcrOnnx.dll 分发 |
 
 ### 9.2 Windows 系统链接库
@@ -1278,21 +1387,21 @@ bin/
 ### 10.2 启动方式
 
 **方式一：双击 EXE**  
-`Tools_v1.0.1.exe` → 后台运行 + 系统托盘图标 → 双击/右键菜单打开 UI
+`LocalToolbox` → 后台运行 + 系统托盘图标 → 双击/右键菜单打开 UI
 
 **方式二：命令行启动**
 ```bash
 # 默认：端口 3100 + WebView 窗口模式
-Tools_v1.0.1.exe
+LocalToolbox
 
 # 指定端口
-Tools_v1.0.1.exe --port 8080
+LocalToolbox --port 8080
 
 # 启用 HTTPS
-Tools_v1.0.1.exe --https --ssl-cert cert.pem --ssl-key key.pem
+LocalToolbox --https --ssl-cert cert.pem --ssl-key key.pem
 
 # 查看帮助
-Tools_v1.0.1.exe -h
+LocalToolbox -h
 ```
 
 ### 10.3 访问方式
@@ -1386,7 +1495,9 @@ Tools_v1.0.1.exe -h
 | `log.file_path` | string | 日志文件/目录路径 |
 | `tool.pdf_path` | string | pdf_tool.exe 完整路径 |
 | `tool.ffmpeg_path` | string | ffmpeg.exe 完整路径 |
+| `tool.adb_path` | string | adb.exe 完整路径（ADB 调试工具依赖） |
 | `tool.openssl_path` | string | openssl.exe 完整路径 |
+| `security.only_localhost` | bool | 是否仅允许本机访问（启用后所有请求强制 localhost 守卫） |
 
 ### 12.2 命令行参数（CLI11 定义）
 
@@ -1409,4 +1520,4 @@ Tools_v1.0.1.exe -h
 
 **文档结束**
 
-*本 Code Wiki 对应 Tools 项目 v1.0.1，基于源码静态分析生成。*
+*本 Code Wiki 对应 LocalToolbox 项目 v1.0.3，基于源码静态分析生成。*

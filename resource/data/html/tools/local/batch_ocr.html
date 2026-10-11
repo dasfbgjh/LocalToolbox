@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片批量OCR</title>
+    <link rel="stylesheet" href="../../style.css">
+    <script src="../../theme.js"></script>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="./batch_ocr.css">
+</head>
+
+<body>
+    <div class="tool-page">
+        <div id="banner"></div>
+        <div class="bo-main">
+            <div class="bo-left">
+                <div class="bo-section">
+                    <div class="tool-toolbar" style="margin-bottom:0;">
+                        <h2 style="margin:0;flex:0 0 auto;">识别参数</h2>
+                    </div>
+
+                    <div class="bo-param-group">
+                        <label class="bo-param-label">识别模式</label>
+                        <select id="param-mode" class="select bo-param-select">
+                            <option value="doc">文档识别</option>
+                            <option value="table">表格识别</option>
+                            <option value="plate">车牌识别</option>
+                        </select>
+                    </div>
+
+                    <fieldset class="bo-fieldset" id="fs-text">
+                        <legend class="bo-legend">文本识别</legend>
+                        <div class="bo-param-group">
+                            <label class="bo-param-label">识别模型</label>
+                            <select id="param-model" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                        <div class="bo-param-group">
+                            <label class="bo-param-label">角度检测方式</label>
+                            <select id="param-cls-mode" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                        <div class="bo-param-group">
+                            <label class="bo-param-label">角度检测模型</label>
+                            <select id="param-cls-model" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+
+                        <div class="bo-param-row">
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">最大边长</label>
+                                <input type="number" id="param-maxSideLen" value="960" min="32" max="4096" step="32"
+                                    class="bo-param-number">
+                            </div>
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">缩放限制</label>
+                                <select id="param-limitType" class="select bo-param-select">
+                                    <option value="max">最长边</option>
+                                    <option value="min">最短边</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="bo-param-group">
+                            <label class="bo-param-label">检测阈值 <span id="param-boxScoreThresh-val"
+                                    class="bo-param-val">0.30</span></label>
+                            <input type="range" id="param-boxScoreThresh" min="0.1" max="0.9" step="0.05" value="0.3">
+                        </div>
+
+                        <div class="bo-param-row">
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">框置信度 <span id="param-boxThresh-val"
+                                        class="bo-param-val">0.60</span></label>
+                                <input type="range" id="param-boxThresh" min="0.1" max="0.9" step="0.05" value="0.6">
+                            </div>
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">扩展比例 <span id="param-unClipRatio-val"
+                                        class="bo-param-val">1.50</span></label>
+                                <input type="range" id="param-unClipRatio" min="0.5" max="4.0" step="0.1" value="1.5">
+                            </div>
+                        </div>
+
+                        <div class="bo-param-row">
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">形态学膨胀</label>
+                                <select id="param-dilation" class="select bo-param-select">
+                                    <option value="0">禁用</option>
+                                    <option value="1">启用</option>
+                                </select>
+                            </div>
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">置信度模式</label>
+                                <select id="param-scoreMode" class="select bo-param-select">
+                                    <option value="fast">快速</option>
+                                    <option value="slow">平均</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="bo-param-row">
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">输出框类型</label>
+                                <select id="param-boxType" class="select bo-param-select">
+                                    <option value="quad">四边形</option>
+                                    <option value="poly">多边形</option>
+                                </select>
+                            </div>
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">包含空格</label>
+                                <select id="param-spaceChar" class="select bo-param-select">
+                                    <option value="1">启用</option>
+                                    <option value="0">禁用</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="bo-param-row">
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">识别批处理</label>
+                                <input type="number" id="param-recBatchNum" value="6" min="1" max="32" step="1"
+                                    class="bo-param-number">
+                            </div>
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">识别过滤 <span id="param-dropScore-val"
+                                        class="bo-param-val">0.50</span></label>
+                                <input type="range" id="param-dropScore" min="0.1" max="0.9" step="0.05" value="0.5">
+                            </div>
+                        </div>
+
+                        <div class="bo-param-row">
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">分类批处理</label>
+                                <input type="number" id="param-clsBatchNum" value="6" min="1" max="32" step="1"
+                                    class="bo-param-number">
+                            </div>
+                            <div class="bo-param-group">
+                                <label class="bo-param-label">分类阈值 <span id="param-clsThresh-val"
+                                        class="bo-param-val">0.90</span></label>
+                                <input type="range" id="param-clsThresh" min="0.1" max="0.99" step="0.01" value="0.9">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="bo-fieldset" id="fs-layout">
+                        <legend class="bo-legend">文档结构识别</legend>
+                        <div class="bo-param-group">
+                            <label class="bo-param-label">版面算法</label>
+                            <select id="param-layout-algo" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                        <div class="bo-param-group">
+                            <label class="bo-param-label">版面模型</label>
+                            <select id="param-layout" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="bo-fieldset" id="fs-table">
+                        <legend class="bo-legend">表格识别</legend>
+                        <div class="bo-param-group">
+                            <label class="bo-param-label">表格类型</label>
+                            <select id="param-table-algo" class="select bo-param-select">
+                                <option value="wireless">无线表格</option>
+                                <option value="wired">有线表格</option>
+                                <option value="combined">自动识别</option>
+                            </select>
+                        </div>
+                        <div class="bo-param-group" id="table-wireless-group" style="display:none;">
+                            <label class="bo-param-label">无线模型</label>
+                            <select id="param-table-wireless" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                        <div class="bo-param-group" id="table-wired-group" style="display:none;">
+                            <label class="bo-param-label">有线模型</label>
+                            <select id="param-table-wired" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                        <div class="bo-param-group" id="table-cls-group" style="display:none;">
+                            <label class="bo-param-label">检测模型</label>
+                            <select id="param-table-cls" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="bo-fieldset" id="fs-plate">
+                        <legend class="bo-legend">车牌识别</legend>
+                        <div class="bo-param-group">
+                            <label class="bo-param-label">车牌模型</label>
+                            <select id="param-plate-model" class="select bo-param-select">
+                                <option value="">加载中…</option>
+                            </select>
+                        </div>
+                    </fieldset>
+                </div>
+            </div>
+
+            <div class="bo-right">
+                <div class="bo-section">
+                    <div class="tool-toolbar" style="margin-bottom:0;">
+                        <h2 style="margin:0;flex:0 0 auto;">输入文件</h2>
+                        <span class="spacer"></span>
+                        <button class="btn" id="btn-start" type="button" disabled>开始识别</button>
+                    </div>
+                    <div class="bo-toolbar" style="margin-bottom: 0.375rem;">
+                        <button class="btn btn-outline btn-sm" id="btn-browse-input">浏览添加...</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-clear-input">清空</button>
+                    </div>
+                    <div class="bo-file-list" id="input-list">
+                        <div class="empty">未选择文件</div>
+                    </div>
+                </div>
+
+                <div class="bo-section">
+                    <div class="tool-toolbar" style="margin-bottom:0.75rem;">
+                        <h2 style="margin:0;flex:0 0 auto;">任务列表</h2>
+                        <span class="spacer"></span>
+                        <button class="btn btn-ghost btn-sm" id="btn-clear-finished" type="button">清理已完成</button>
+                    </div>
+                    <div class="bo-task-list" id="task-list">
+                        <div
+                            style="font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 0.75rem;">
+                            暂无任务</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../../app.js"></script>
+    <script src="../../api.js"></script>
+    <script src="./../common.js"></script>
+    <script src="../../fs_browser.js"></script>
+    <script src="./batch_ocr.js"></script>
+</body>
+
+</html>

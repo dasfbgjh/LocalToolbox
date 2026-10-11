@@ -5,7 +5,7 @@
 #include <ctime>
 #include <string>
 #include "core/Auth.hpp"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "common/App.h"
 #include "common/Config.h"
 

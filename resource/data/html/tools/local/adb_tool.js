@@ -69,6 +69,8 @@
         if (tabName === 'devices') loadDevices();
         if (tabName === 'forward') { updateSerialSelects(); loadForwards(); }
         if (tabName === 'shell') updateSerialSelects();
+        if (tabName === 'logcat') updateLogcatSerialSelect();
+        if (tabName !== 'logcat') stopLogcat();
     }
 
     function loadDevices() {
@@ -111,12 +113,12 @@
     }
 
     function updateSerialSelects() {
-        var selects = [document.getElementById('fwd-serial'), document.getElementById('fwd-add-serial'), document.getElementById('shell-serial')];
+        var selects = [document.getElementById('fwd-serial'), document.getElementById('fwd-add-serial'), document.getElementById('shell-serial'), document.getElementById('logcat-serial')];
         selects.forEach(function (sel) {
             if (!sel) return;
             var cur = sel.value;
             var html = '<option value="">所有设备</option>';
-            if (sel.id === 'fwd-add-serial' || sel.id === 'shell-serial') {
+            if (sel.id === 'fwd-add-serial' || sel.id === 'shell-serial' || sel.id === 'logcat-serial') {
                 html = '<option value="">默认设备</option>';
             }
             devices.forEach(function (d) {
@@ -125,6 +127,126 @@
             sel.innerHTML = html;
             sel.value = cur;
         });
+    }
+
+    function updateLogcatSerialSelect() {
+        var sel = document.getElementById('logcat-serial');
+        if (!sel) return;
+        var cur = sel.value;
+        var html = '<option value="">默认设备</option>';
+        devices.forEach(function (d) {
+            html += '<option value="' + App.escapeHtml(d.serial) + '">' + App.escapeHtml(d.serial) + '</option>';
+        });
+        sel.innerHTML = html;
+        sel.value = cur;
+    }
+
+    var LOGCAT_LEVEL_COLORS = {
+        V: '#9e9e9e',
+        D: '#2196f3',
+        I: '#4caf50',
+        W: '#ff9800',
+        E: '#f44336',
+        F: '#e91e63'
+    };
+
+    var logcatRawText = '';
+    var logcatTimer = null;
+    var logcatRunning = false;
+
+    function parseLogcatLine(line) {
+        var m = line.match(/^(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)\s+(\d+)\s+(\d+)\s+([VDIWEF])\s+(.+?)\s*:\s*(.*)$/);
+        if (m) return { time: m[1], pid: m[2], tid: m[3], level: m[4], tag: m[5], msg: m[6] };
+        m = line.match(/^([VDIWEF])\/(.+?)\s*\(\s*(\d+)\s*\):\s*(.*)$/);
+        if (m) return { time: '', pid: m[3], tid: '', level: m[1], tag: m[2], msg: m[4] };
+        return null;
+    }
+
+    function renderLogcat(text) {
+        logcatRawText = text;
+        var container = document.getElementById('logcat-output');
+        if (!text) {
+            container.innerHTML = '<div class="adb-shell-placeholder">无日志输出</div>';
+            return;
+        }
+        var lines = text.split('\n');
+        var html = '';
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            if (!line) continue;
+            var parsed = parseLogcatLine(line);
+            if (parsed) {
+                var color = LOGCAT_LEVEL_COLORS[parsed.level] || 'var(--text)';
+                html += '<div class="adb-logcat-line" data-level="' + parsed.level + '">' +
+                    '<span class="log-time">' + App.escapeHtml(parsed.time) + '</span>' +
+                    '<span class="log-level" style="color:' + color + '">' + parsed.level + '</span>' +
+                    '<span class="log-pid">' + App.escapeHtml(parsed.pid) + '</span>' +
+                    '<span class="log-tag" style="color:' + color + '">' + App.escapeHtml(parsed.tag) + '</span>' +
+                    '<span class="log-msg">' + App.escapeHtml(parsed.msg) + '</span>' +
+                    '</div>';
+            } else {
+                html += '<div class="adb-logcat-line">' +
+                    '<span class="log-msg">' + App.escapeHtml(line) + '</span>' +
+                    '</div>';
+            }
+        }
+        container.innerHTML = html;
+        if (document.getElementById('logcat-autoscroll').checked) {
+            container.scrollTop = container.scrollHeight;
+        }
+    }
+
+    function fetchLogcat() {
+        var serial = document.getElementById('logcat-serial').value;
+        var level = document.getElementById('logcat-level').value;
+        var tag = document.getElementById('logcat-tag').value.trim();
+        var packageOrPid = document.getElementById('logcat-package').value.trim();
+        var lines = parseInt(document.getElementById('logcat-lines').value, 10) || 200;
+
+        var pid = '';
+        var pkg = '';
+        if (packageOrPid && /^\d+$/.test(packageOrPid)) {
+            pid = packageOrPid;
+        } else if (packageOrPid) {
+            pkg = packageOrPid;
+        }
+
+        Api.localTools.adb.logcat(serial, tag, level, pid, pkg, lines).then(function (data) {
+            if (data.success) {
+                renderLogcat(data.output || '');
+            } else {
+                document.getElementById('logcat-output').innerHTML = '<div class="adb-shell-placeholder">错误: ' + App.escapeHtml(data.error || '读取失败') + '</div>';
+            }
+        }).catch(function () {
+            document.getElementById('logcat-output').innerHTML = '<div class="adb-shell-placeholder">请求失败</div>';
+        });
+    }
+
+    function startLogcat() {
+        if (logcatRunning) return;
+        logcatRunning = true;
+        document.getElementById('btn-logcat-start').disabled = true;
+        document.getElementById('btn-logcat-stop').disabled = false;
+        fetchLogcat();
+        var interval = parseInt(document.getElementById('logcat-interval').value, 10) || 2000;
+        logcatTimer = setInterval(fetchLogcat, interval);
+    }
+
+    function stopLogcat() {
+        if (!logcatRunning) return;
+        logcatRunning = false;
+        if (logcatTimer) { clearInterval(logcatTimer); logcatTimer = null; }
+        document.getElementById('btn-logcat-start').disabled = false;
+        document.getElementById('btn-logcat-stop').disabled = true;
+    }
+
+    function clearLogcat() {
+        var serial = document.getElementById('logcat-serial').value;
+        if (!confirm('确认清空 logcat 缓冲区？')) return;
+        Api.localTools.adb.logcatClear({ serial: serial }).then(function (data) {
+            if (data.success) showBanner('success', 'logcat 缓冲区已清空');
+            else showBanner('error', data.error || '清空失败');
+        }).catch(function () { showBanner('error', '请求失败'); });
     }
 
     function isReverse() {
@@ -285,6 +407,30 @@
         document.getElementById('btn-shell-exec').addEventListener('click', execShell);
         document.getElementById('shell-cmd').addEventListener('keydown', function (e) {
             if (e.key === 'Enter') execShell();
+        });
+
+        document.getElementById('btn-logcat-start').addEventListener('click', startLogcat);
+        document.getElementById('btn-logcat-stop').addEventListener('click', stopLogcat);
+        document.getElementById('btn-logcat-clear').addEventListener('click', clearLogcat);
+        document.getElementById('btn-logcat-copy').addEventListener('click', function () {
+            if (!logcatRawText) { showBanner('warn', '暂无日志可复制'); return; }
+            navigator.clipboard.writeText(logcatRawText).then(function () {
+                showBanner('success', '已复制到剪贴板');
+            }).catch(function () { showBanner('error', '复制失败'); });
+        });
+        document.getElementById('btn-logcat-download').addEventListener('click', function () {
+            if (!logcatRawText) { showBanner('warn', '暂无日志可下载'); return; }
+            var now = new Date();
+            var ts = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0') + '_' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
+            var blob = new Blob([logcatRawText], { type: 'text/plain;charset=utf-8' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'logcat_' + ts + '.log';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
         });
 
         document.getElementById('fwd-serial').addEventListener('change', loadForwards);

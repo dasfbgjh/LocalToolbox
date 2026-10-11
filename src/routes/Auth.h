@@ -4,7 +4,7 @@
 #include <httplib.h>
 #include "common/App.h"
 #include "core/Auth.hpp"
-#include "core/Utils.h"
+#include "common/Utils.h"
 
 namespace routes::auth {
 // Register all authentication-related routes on the given server.

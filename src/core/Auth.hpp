@@ -7,7 +7,7 @@
 #include "common/App.h"
 #include "common/Logger.hpp"
 #include "core/Sha256.h"
-#include "core/Utils.h"
+#include "common/Utils.h"
 
 namespace core::auth {
 using json = nlohmann::json;

@@ -1,6 +1,7 @@
 #include "EventLoop.h"
 #include "common/Logger.hpp"
-#include "core/Utils.h"
+#include "common/Utils.h"
+#include "common/Config.h"
 
 #include <atomic>
 #include <chrono>

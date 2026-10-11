@@ -1,6 +1,12 @@
 #include "Utils.h"
+#include "common/Config.h"
+
 #ifdef _WIN32
 #include <windows.h>
+#include <shlobj.h>
+#include <objbase.h>
+#else
+#include <cstdlib>
 #endif
 
 namespace utils {
@@ -324,7 +330,87 @@ void openDirectory( const std::string &path ) {
     if ( std::filesystem::exists( p ) )
         ShellExecuteA( NULL, "open", p.string().c_str(), NULL, ".", SW_SHOWNORMAL );
     else
-        LOG_WARN << "打开文件或目录不存在: " << path;
+        LOG_WARN << "打开文件或目录不存在:" << path;
+#endif
+}
+
+void makeDesktopShortcut( const std::string &path, const std::string &name ) {
+    LOG_INFO << "创建快捷方式: " << path << " " << name;
+#ifdef _WIN32
+    auto utf8ToW = []( const std::string &s ) -> std::wstring {
+        if ( s.empty() )
+            return L"";
+        int len = MultiByteToWideChar( CP_UTF8, 0, s.c_str(), -1, NULL, 0 );
+        std::wstring ws( len - 1, 0 );
+        MultiByteToWideChar( CP_UTF8, 0, s.c_str(), -1, &ws[0], len );
+        return ws;
+    };
+
+    wchar_t wDesktop[MAX_PATH];
+    if ( S_OK != SHGetFolderPathW( NULL, CSIDL_DESKTOP, NULL, 0, wDesktop ) ) {
+        LOG_WARN << "获取桌面路径失败";
+        return;
+    }
+
+    std::wstring wName = utf8ToW( name ) + L".lnk";
+    stdfs::path lnkPath = stdfs::path( wDesktop ) / wName;
+    std::wstring wLnkPath = lnkPath.wstring();
+
+    std::wstring wPath = utf8ToW( path );
+
+    HRESULT hr = CoInitializeEx( NULL, COINIT_APARTMENTTHREADED );
+    if ( FAILED( hr ) && hr != RPC_E_CHANGED_MODE ) {
+        LOG_WARN << "COM 初始化失败";
+        return;
+    }
+
+    IShellLinkW *pShellLink = NULL;
+    hr = CoCreateInstance( CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
+                           IID_IShellLinkW, (void **)&pShellLink );
+    if ( SUCCEEDED( hr ) ) {
+        pShellLink->SetPath( wPath.c_str() );
+
+        stdfs::path workDir = stdfs::path( wPath ).parent_path();
+        if ( !workDir.empty() )
+            pShellLink->SetWorkingDirectory( workDir.wstring().c_str() );
+
+        IPersistFile *pPersistFile = NULL;
+        hr = pShellLink->QueryInterface( IID_IPersistFile, (void **)&pPersistFile );
+        if ( SUCCEEDED( hr ) ) {
+            pPersistFile->Save( wLnkPath.c_str(), TRUE );
+            pPersistFile->Release();
+        } else {
+            LOG_WARN << "创建快捷方式失败1:" << lnkPath.string();
+        }
+        pShellLink->Release();
+    } else {
+        LOG_WARN << "创建快捷方式失败2:" << lnkPath.string();
+    }
+
+    CoUninitialize();
+#else
+    const char *xdgDesktop = std::getenv( "XDG_DESKTOP_DIR" );
+    stdfs::path desktopPath;
+    if ( xdgDesktop && xdgDesktop[0] != '\0' )
+        desktopPath = xdgDesktop;
+    else
+        desktopPath = stdfs::path( std::getenv( "HOME" ) ) / "Desktop";
+
+    stdfs::path desktopFilePath = desktopPath / ( name + ".desktop" );
+    std::ofstream out( desktopFilePath );
+    if ( out.is_open() ) {
+        out << "[Desktop Entry]\n";
+        out << "Type=Application\n";
+        out << "Name=" << name << "\n";
+        out << "Exec=" << path << "\n";
+        out << "Terminal=false\n";
+        out.close();
+        stdfs::permissions( desktopFilePath,
+                            stdfs::perms::owner_read | stdfs::perms::owner_write | stdfs::perms::owner_exec,
+                            stdfs::perm_options::add );
+    } else {
+        LOG_WARN << "创建 .desktop 文件失败: " << desktopFilePath.string();
+    }
 #endif
 }
 
@@ -478,6 +564,22 @@ std::string localToUtf8( const std::string &local ) {
     return result;
 #else
     return local;
+#endif
+}
+
+std::string wstring_to_string( const std::wstring &wstr ) {
+#ifdef _WIN32
+    if ( wstr.empty() )
+        return "";
+    int size = WideCharToMultiByte( CP_UTF8, 0, wstr.c_str(), (int)wstr.size(),
+                                    nullptr, 0, nullptr, nullptr );
+    std::string result( size, '\0' );
+    WideCharToMultiByte( CP_UTF8, 0, wstr.c_str(), (int)wstr.size(),
+                         &result[0], size, nullptr, nullptr );
+    return result;
+#else
+    LOG_WARN << "wstring_to_string: not implemented on non-Windows platform";
+    return std::string( wstr.size(), '*' );
 #endif
 }
 
@@ -695,6 +797,12 @@ bool makeDir( const std::string &nativePath ) {
     return !ec;
 }
 
+bool makeLink( const std::string &sourcePath, const std::string &linkPath ) {
+    std::error_code ec;
+    stdfs::create_symlink( sourcePath, linkPath, ec );
+    return !ec;
+}
+
 bool remove( const std::string &nativePath ) {
     std::error_code ec;
     return stdfs::remove_all( nativePath, ec ) > 0;
@@ -703,3 +811,11 @@ bool remove( const std::string &nativePath ) {
 } // namespace fs
 
 } // namespace utils
+
+Logger::OStream &operator<<( Logger::OStream &&os, const std::wstring &msg ) {
+    return os.operator<<( utils::wstring_to_string( msg ) );
+}
+
+Logger::OStream &operator<<( Logger::OStream &&os, const wchar_t *msg ) {
+    return operator<<( std::move( os ), std::wstring( msg ) );
+}

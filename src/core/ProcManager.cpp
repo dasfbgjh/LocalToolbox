@@ -4,7 +4,7 @@
 #include "common/EventLoop.h"
 #include "common/Logger.hpp"
 #include "core/Database.h"
-#include "core/Utils.h"
+#include "common/Utils.h"
 
 #include <algorithm>
 #include <chrono>

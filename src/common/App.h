@@ -61,6 +61,7 @@ private:
         OpenAbout,
         OpenBrowser,
         OpenWebview,
+        MakeDesktopShortcut,
     };
 
     void configLogger();

@@ -22,6 +22,7 @@
 - **多版面分析引擎**：PP-Structure / pp_doclayoutv2 / YOLOv8 / DocLayout YOLO（统一接口）
 - **多表格识别引擎**：SLANet+（无线表格）/ UNet（有线表格）/ 自动分类模式
 - **图像显示辅助**：`image_show_rects` / `image_show_rects_file` 可视化调试
+- **日志系统**：可配置日志等级 + 自定义回调函数，各模块关键位置内置日志输出
 
 ## 目录结构
 
@@ -42,7 +43,8 @@ OCR/
 │   │   ├── pre_process.h/.cpp          #   图像预处理（resize/normalize/CHW）
 │   │   ├── db_post_process.h/.cpp      #   DB 后处理（轮廓提取、多边形扩展）
 │   │   ├── ctc_decode.h/.cpp           #   CTC 标签解码
-│   │   └── utils.h/.cpp               #   框排序、透视裁剪等工具
+│   │   ├── logger.h/.cpp               #   日志系统（等级/回调/宏）
+│   │   └── utils.h/.cpp                #   框排序、透视裁剪等工具
 │   ├── text/                           # 文本识别模块
 │   │   ├── text_detector.h/.cpp        #   DB 文本检测器
 │   │   ├── text_recognizer.h/.cpp      #   CTC 文本识别器
@@ -226,6 +228,82 @@ ocr_run(handle, bgr_buffer, width, height, -1,-1,-1,-1, &results);
 ocr_free_results(&results);
 ```
 
+### 日志系统
+
+库内置日志系统，支持设置日志等级和注册回调函数，所有日志输出均通过回调函数传递给调用方。
+
+#### 日志等级
+
+| 等级 | 值 | 说明 |
+|------|---|------|
+| `OCR_LOG_TRACE` | 0 | 最详细：每帧图像尺寸、推理形状、推理耗时(ms)、每批次处理细节 |
+| `OCR_LOG_DEBUG` | 1 | 调试信息：检测框数量、NMS 结果、识别完成数、过滤统计 |
+| `OCR_LOG_INFO` | 2 | 关键流程：模块初始化参数、模型加载完成 |
+| `OCR_LOG_WARN` | 3 | 警告：warm-up 推理失败等非致命异常 |
+| `OCR_LOG_ERROR` | 4 | 错误 |
+| `OCR_LOG_OFF` | 5 | 关闭所有日志 |
+
+默认等级为 `OCR_LOG_WARN`（仅输出警告和错误）。
+
+#### 使用示例
+
+```c
+#include "ocr.h"
+
+// 自定义日志回调
+void my_log_callback(int level, const char* tag, const char* msg) {
+    const char* level_names[] = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR"};
+    printf("[%s][%s] %s\n", level_names[level], tag, msg);
+}
+
+int main() {
+    // 设置日志等级（开启 DEBUG 级别）
+    ocr_set_log_level(OCR_LOG_DEBUG);
+
+    // 注册日志回调
+    ocr_set_log_callback(my_log_callback);
+
+    // 之后所有模块的日志都会通过 my_log_callback 输出
+    OcrConfig config = {};
+    // ... 配置省略 ...
+    OcrHandle* handle = ocr_create(&config);
+    // 创建时会输出 INFO 级别日志：
+    //   [INFO][ocr] ocr_create: det=... rec=... dict=... cls=... gpu=0
+
+    OcrResultList results = {};
+    ocr_run_file(handle, "test.jpg", -1,-1,-1,-1, &results);
+    // 运行时会输出 DEBUG 级别日志：
+    //   [DEBUG][ocr] TextSystem: detected 5 text boxes
+    //   [DEBUG][ocr] TextSystem: cropped 5 text regions (from 5 boxes)
+    //   [DEBUG][ocr] TextSystem: 5 results after drop_score filter (threshold=0.50, dropped=0)
+
+    ocr_free_results(&results);
+    ocr_destroy(handle);
+    return 0;
+}
+```
+
+#### 各模块日志标签
+
+| 标签 | 模块 | 典型日志内容 |
+|------|------|-------------|
+| `session` | ONNX 推理会话 | 模型加载、输入输出数量、推理耗时(ms) |
+| `det` | 文本检测 | 预处理尺寸/缩放比、输出形状、DB 后处理框数 |
+| `rec` | 文本识别 | 批次信息、max_wh_ratio、推理形状、CTC 解码维度 |
+| `cls` | 方向分类 | 批次信息、旋转操作(90°/180°/270°)及分数 |
+| `ocr` | OCR 管线 | 检测/裁剪/分类/识别各步骤数量、drop_score 过滤统计 |
+| `plate` | 车牌识别 | letterbox 参数、检测数/NMS 结果、车牌文本/分数 |
+| `table` | 表格识别 | 模型类型选择、表格分类结果、解码 token/cell/score |
+| `layout` | 版面分析 | 输入尺寸、推理形状、NMS 前后检测数量 |
+
+#### 动态加载方式
+
+```cpp
+ocr::OcrDynamicLoader loader("OnnxOCR.dll");
+loader.set_log_level(OCR_LOG_DEBUG);
+loader.set_log_callback(my_log_callback);
+```
+
 ## API 参考
 
 完整接口定义见 [lib/ocr.h](lib/ocr.h)，动态加载器见 [lib/ocr_dynamic_loader.h](lib/ocr_dynamic_loader.h)。
@@ -251,8 +329,13 @@ ocr_free_results(&results);
 | `table_run` / `table_run_file` | 识别表格结构 |
 | `table_free_result` | 释放结果 |
 | **辅助** | |
-| `ocr_last_error` | 获取最近错误信息（线程局部） |
+| `last_error` | 获取最近错误信息（线程局部） |
+| `version` | 获取库版本 |
 | `image_show_rects` / `image_show_rects_file` | 可视化调试 |
+| **日志** | |
+| `ocr_set_log_level` | 设置日志等级（`OcrLogLevel` 枚举值） |
+| `ocr_get_log_level` | 获取当前日志等级 |
+| `ocr_set_log_callback` | 注册日志回调函数（`OcrLogCallback` 类型） |
 
 ### OcrConfig 字段
 
@@ -297,6 +380,26 @@ typedef struct { float box[4]; float score; int class_id; const char* class_name
 // 表格结果：单元格 + 逻辑位置
 typedef struct { PointF bbox[4]; } TableCell;              // 4个角点
 // logic_points 为 RectBox 数组：x1=row_start, y1=row_end, x2=col_start, y2=col_end
+```
+
+### 日志相关类型
+
+```c
+// 日志等级枚举
+typedef enum {
+    OCR_LOG_TRACE = 0,  // 最详细
+    OCR_LOG_DEBUG = 1,  // 调试
+    OCR_LOG_INFO  = 2,  // 关键流程
+    OCR_LOG_WARN  = 3,  // 警告（默认等级）
+    OCR_LOG_ERROR = 4,  // 错误
+    OCR_LOG_OFF   = 5   // 关闭
+} OcrLogLevel;
+
+// 日志回调函数类型
+//   level: 日志等级（OcrLogLevel 枚举值）
+//   tag:   模块标签（如 "ocr", "det", "rec", "cls", "plate", "table", "layout", "session"）
+//   msg:   格式化后的日志消息
+typedef void (*OcrLogCallback)(int level, const char* tag, const char* msg);
 ```
 
 ## 技术细节

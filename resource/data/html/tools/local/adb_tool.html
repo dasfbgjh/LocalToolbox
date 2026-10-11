@@ -23,6 +23,7 @@
             <button class="adb-tab active" data-tab="devices">设备管理</button>
             <button class="adb-tab" data-tab="forward">端口转发</button>
             <button class="adb-tab" data-tab="shell">Shell</button>
+            <button class="adb-tab" data-tab="logcat">日志</button>
         </div>
 
         <div class="adb-panel" id="panel-devices">
@@ -89,6 +90,66 @@
                 <div class="adb-cmd-history">
                     <h4>历史命令</h4>
                     <div class="adb-cmd-history-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="adb-panel" id="panel-logcat" hidden>
+            <div class="adb-logcat-section">
+                <div class="adb-logcat-toolbar">
+                    <div class="adb-logcat-filter-row">
+                        <div class="adb-field">
+                            <label class="adb-label">设备</label>
+                            <select class="ui-form-input" id="logcat-serial">
+                                <option value="">默认设备</option>
+                            </select>
+                        </div>
+                        <div class="adb-field">
+                            <label class="adb-label">日志级别</label>
+                            <select class="ui-form-input" id="logcat-level">
+                                <option value="">全部</option>
+                                <option value="V">Verbose</option>
+                                <option value="D">Debug</option>
+                                <option value="I" selected>Info</option>
+                                <option value="W">Warn</option>
+                                <option value="E">Error</option>
+                                <option value="F">Fatal</option>
+                            </select>
+                        </div>
+                        <div class="adb-field">
+                            <label class="adb-label">Tag 过滤</label>
+                            <input type="text" class="ui-form-input" id="logcat-tag"
+                                placeholder="例如 ActivityManager" style="font-family:ui-monospace,monospace;">
+                        </div>
+                        <div class="adb-field">
+                            <label class="adb-label">包名 / PID</label>
+                            <input type="text" class="ui-form-input" id="logcat-package"
+                                placeholder="包名如 com.example.app 或 PID">
+                        </div>
+                        <div class="adb-field">
+                            <label class="adb-label">行数</label>
+                            <input type="number" class="ui-form-input" id="logcat-lines"
+                                value="200" min="10" max="5000" step="50" style="width:5rem;">
+                        </div>
+                    </div>
+                    <div class="adb-logcat-actions">
+                        <button class="btn btn-primary btn-sm" id="btn-logcat-start">开始</button>
+                        <button class="btn btn-sm" id="btn-logcat-stop" disabled>停止</button>
+                        <select class="ui-form-input" id="logcat-interval" style="width:auto;">
+                            <option value="1000">1秒</option>
+                            <option value="2000" selected>2秒</option>
+                            <option value="3000">3秒</option>
+                            <option value="5000">5秒</option>
+                        </select>
+                        <button class="btn btn-sm" id="btn-logcat-clear">清空缓冲区</button>
+                        <label class="adb-reverse-toggle"><input type="checkbox" id="logcat-autoscroll" checked> 自动滚动</label>
+                        <span class="spacer"></span>
+                        <button class="btn btn-sm" id="btn-logcat-copy">复制</button>
+                        <button class="btn btn-sm" id="btn-logcat-download">下载</button>
+                    </div>
+                </div>
+                <div class="adb-logcat-output" id="logcat-output">
+                    <div class="adb-shell-placeholder">点击「开始」轮询读取 logcat 输出</div>
                 </div>
             </div>
         </div>

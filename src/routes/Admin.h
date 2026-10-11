@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <optional>
 #include "core/Auth.hpp"
-#include "core/Utils.h"
+#include "common/Utils.h"
 #include "core/Server.h"
 #include "common/App.h"
 #include "common/Config.h"

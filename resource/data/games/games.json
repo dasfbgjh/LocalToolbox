@@ -18,5 +18,9 @@
     {
         "name": "五子棋",
         "path": "gomoku/index.html"
+    },
+    {
+        "name": "羊羊羊",
+        "path": "sheep-vanilla/index.html"
     }
 ]

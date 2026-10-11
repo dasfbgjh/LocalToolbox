@@ -157,45 +157,53 @@ OcrDynamicLoader::~OcrDynamicLoader() {
     }
 }
 
+#define Name_Fn( name ) { #name, reinterpret_cast<void **>( &name##_fn_ ) }
+
 void OcrDynamicLoader::resolve_symbols() {
     struct SymEntry {
         const char *name;
         void **target;
     };
     SymEntry entries[] = {
-        { "last_error", reinterpret_cast<void **>( &last_error_fn_ ) },
+        Name_Fn( last_error ),
+        Name_Fn( version ),
+
+        // 日志API
+        Name_Fn( ocr_set_log_level ),
+        Name_Fn( ocr_get_log_level ),
+        Name_Fn( ocr_set_log_callback ),
 
         // OCR API
-        { "ocr_create", reinterpret_cast<void **>( &ocr_create_fn_ ) },
-        { "ocr_destroy", reinterpret_cast<void **>( &ocr_destroy_fn_ ) },
-        { "ocr_run", reinterpret_cast<void **>( &ocr_run_fn_ ) },
-        { "ocr_run_file", reinterpret_cast<void **>( &ocr_run_file_fn_ ) },
-        { "ocr_free_results", reinterpret_cast<void **>( &ocr_free_results_fn_ ) },
+        Name_Fn( ocr_create ),
+        Name_Fn( ocr_destroy ),
+        Name_Fn( ocr_run ),
+        Name_Fn( ocr_run_file ),
+        Name_Fn( ocr_free_results ),
 
         // 车牌识别API
-        { "plate_create", reinterpret_cast<void **>( &plate_create_fn_ ) },
-        { "plate_destroy", reinterpret_cast<void **>( &plate_destroy_fn_ ) },
-        { "plate_run", reinterpret_cast<void **>( &plate_run_fn_ ) },
-        { "plate_run_file", reinterpret_cast<void **>( &plate_run_file_fn_ ) },
-        { "plate_free_results", reinterpret_cast<void **>( &plate_free_results_fn_ ) },
+        Name_Fn( plate_create ),
+        Name_Fn( plate_destroy ),
+        Name_Fn( plate_run ),
+        Name_Fn( plate_run_file ),
+        Name_Fn( plate_free_results ),
 
         // 表格识别API
-        { "table_create", reinterpret_cast<void **>( &table_create_fn_ ) },
-        { "table_destroy", reinterpret_cast<void **>( &table_destroy_fn_ ) },
-        { "table_run", reinterpret_cast<void **>( &table_run_fn_ ) },
-        { "table_run_file", reinterpret_cast<void **>( &table_run_file_fn_ ) },
-        { "table_free_result", reinterpret_cast<void **>( &table_free_result_fn_ ) },
+        Name_Fn( table_create ),
+        Name_Fn( table_destroy ),
+        Name_Fn( table_run ),
+        Name_Fn( table_run_file ),
+        Name_Fn( table_free_result ),
 
         // 版面分析统一API
-        { "doclayout_yolo_create", reinterpret_cast<void **>( &doclayout_yolo_create_fn_ ) },
-        { "doclayout_yolo_destroy", reinterpret_cast<void **>( &doclayout_yolo_destroy_fn_ ) },
-        { "doclayout_yolo_run", reinterpret_cast<void **>( &doclayout_yolo_run_fn_ ) },
-        { "doclayout_yolo_run_file", reinterpret_cast<void **>( &doclayout_yolo_run_file_fn_ ) },
-        { "doc_layout_free_results", reinterpret_cast<void **>( &doc_layout_free_results_fn_ ) },
+        Name_Fn( doclayout_yolo_create ),
+        Name_Fn( doclayout_yolo_destroy ),
+        Name_Fn( doclayout_yolo_run ),
+        Name_Fn( doclayout_yolo_run_file ),
+        Name_Fn( doc_layout_free_results ),
 
         // 图像显示API
-        { "image_show_rects", reinterpret_cast<void **>( &image_show_rects_fn_ ) },
-        { "image_show_rects_file", reinterpret_cast<void **>( &image_show_rects_file_fn_ ) },
+        Name_Fn( image_show_rects ),
+        Name_Fn( image_show_rects_file ),
 
     };
 
@@ -208,5 +216,7 @@ void OcrDynamicLoader::resolve_symbols() {
         }
     }
 }
+
+#undef Name_Fn
 
 } // namespace ocr

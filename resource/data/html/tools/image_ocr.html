@@ -33,6 +33,7 @@
                     <select id="param-mode" class="select ocr-param-select">
                         <option value="doc">文档识别</option>
                         <option value="table">表格识别</option>
+                        <option value="plate">车牌识别</option>
                     </select>
                 </div>
 
@@ -56,21 +57,99 @@
                             <option value="">加载中…</option>
                         </select>
                     </div>
-                    <div class="ocr-param-group">
-                        <label class="ocr-param-label">最大边长</label>
-                        <input type="number" id="param-maxSideLen" value="1024" min="32" max="4096" step="32"
-                            class="ocr-param-number">
+
+                    <div class="ocr-param-row">
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">最大边长</label>
+                            <input type="number" id="param-maxSideLen" value="960" min="32" max="4096" step="32"
+                                class="ocr-param-number">
+                        </div>
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">缩放限制</label>
+                            <select id="param-limitType" class="select ocr-param-select">
+                                <option value="max">最长边</option>
+                                <option value="min">最短边</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="ocr-param-group">
                         <label class="ocr-param-label">检测阈值 <span id="param-boxScoreThresh-val"
-                                class="ocr-param-val">0.50</span></label>
-                        <input type="range" id="param-boxScoreThresh" min="0.1" max="0.9" step="0.05" value="0.5">
+                                class="ocr-param-val">0.30</span></label>
+                        <input type="range" id="param-boxScoreThresh" min="0.1" max="0.9" step="0.05" value="0.3">
                     </div>
-                    <div class="ocr-param-group">
-                        <label class="ocr-param-label">文本扩展比例 <span id="param-unClipRatio-val"
-                                class="ocr-param-val">1.60</span></label>
-                        <input type="range" id="param-unClipRatio" min="0.5" max="4.0" step="0.1" value="1.6">
+
+                    <div class="ocr-param-row">
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">框置信度 <span id="param-boxThresh-val"
+                                    class="ocr-param-val">0.60</span></label>
+                            <input type="range" id="param-boxThresh" min="0.1" max="0.9" step="0.05" value="0.6">
+                        </div>
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">扩展比例 <span id="param-unClipRatio-val"
+                                    class="ocr-param-val">1.50</span></label>
+                            <input type="range" id="param-unClipRatio" min="0.5" max="4.0" step="0.1" value="1.5">
+                        </div>
+                    </div>
+
+                    <div class="ocr-param-row">
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">形态学膨胀</label>
+                            <select id="param-dilation" class="select ocr-param-select">
+                                <option value="0">禁用</option>
+                                <option value="1">启用</option>
+                            </select>
+                        </div>
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">置信度模式</label>
+                            <select id="param-scoreMode" class="select ocr-param-select">
+                                <option value="fast">快速</option>
+                                <option value="slow">平均</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="ocr-param-row">
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">输出框类型</label>
+                            <select id="param-boxType" class="select ocr-param-select">
+                                <option value="quad">四边形</option>
+                                <option value="poly">多边形</option>
+                            </select>
+                        </div>
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">包含空格</label>
+                            <select id="param-spaceChar" class="select ocr-param-select">
+                                <option value="1">启用</option>
+                                <option value="0">禁用</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="ocr-param-row">
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">识别批处理</label>
+                            <input type="number" id="param-recBatchNum" value="6" min="1" max="32" step="1"
+                                class="ocr-param-number">
+                        </div>
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">识别过滤 <span id="param-dropScore-val"
+                                    class="ocr-param-val">0.50</span></label>
+                            <input type="range" id="param-dropScore" min="0.1" max="0.9" step="0.05" value="0.5">
+                        </div>
+                    </div>
+
+                    <div class="ocr-param-row">
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">分类批处理</label>
+                            <input type="number" id="param-clsBatchNum" value="6" min="1" max="32" step="1"
+                                class="ocr-param-number">
+                        </div>
+                        <div class="ocr-param-group">
+                            <label class="ocr-param-label">分类阈值 <span id="param-clsThresh-val"
+                                    class="ocr-param-val">0.90</span></label>
+                            <input type="range" id="param-clsThresh" min="0.1" max="0.99" step="0.01" value="0.9">
+                        </div>
                     </div>
                 </fieldset>
 
@@ -93,22 +172,38 @@
                 <fieldset class="ocr-fieldset" id="fs-table">
                     <legend class="ocr-legend">表格识别</legend>
                     <div class="ocr-param-group">
-                        <label class="ocr-param-label">表格算法</label>
+                        <label class="ocr-param-label">表格类型</label>
                         <select id="param-table-algo" class="select ocr-param-select">
-                            <option value="wireless">无线</option>
-                            <option value="wired">有线</option>
-                            <option value="combined">组合</option>
+                            <option value="wireless">无线表格</option>
+                            <option value="wired">有线表格</option>
+                            <option value="combined">自动识别</option>
                         </select>
                     </div>
-                    <div class="ocr-param-group">
-                        <label class="ocr-param-label">表格模型</label>
-                        <select id="param-table" class="select ocr-param-select">
+                    <div class="ocr-param-group" id="table-wireless-group" style="display:none;">
+                        <label class="ocr-param-label">无线模型</label>
+                        <select id="param-table-wireless" class="select ocr-param-select">
+                            <option value="">加载中…</option>
+                        </select>
+                    </div>
+                    <div class="ocr-param-group" id="table-wired-group" style="display:none;">
+                        <label class="ocr-param-label">有线模型</label>
+                        <select id="param-table-wired" class="select ocr-param-select">
                             <option value="">加载中…</option>
                         </select>
                     </div>
                     <div class="ocr-param-group" id="table-cls-group" style="display:none;">
-                        <label class="ocr-param-label">类型检测模型</label>
+                        <label class="ocr-param-label">检测模型</label>
                         <select id="param-table-cls" class="select ocr-param-select">
+                            <option value="">加载中…</option>
+                        </select>
+                    </div>
+                </fieldset>
+
+                <fieldset class="ocr-fieldset" id="fs-plate">
+                    <legend class="ocr-legend">车牌识别</legend>
+                    <div class="ocr-param-group">
+                        <label class="ocr-param-label">车牌模型</label>
+                        <select id="param-plate-model" class="select ocr-param-select">
                             <option value="">加载中…</option>
                         </select>
                     </div>

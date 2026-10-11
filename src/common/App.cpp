@@ -8,11 +8,12 @@
 #include "core/ProcManager.h"
 #include "routes/FfmpegTool.h"
 #include "routes/OcrTools.h"
+#include "routes/BatchOcrTool.h"
 
 App *App::g_instance = nullptr;
 
 #ifdef _WIN32
-const char *App::g_localServerName = "\\\\.\\pipe\\tools-ipc";
+const char *App::g_localServerName = "\\\\.\\pipe\\localtoolbox-ipc";
 HANDLE App::g_mutex = nullptr;
 #endif
 
@@ -123,6 +124,7 @@ int App::exec() {
     ProcManager::instance().shutdownAll();
     routes::ffmpeg::FfmpegManager::instance().shutdownAll();
     routes::ocrTools::shutdown();
+    routes::batchOcrTool::shutdown();
     webview.stop();
     m_server.stop();
     if ( serverTh1.joinable() )
@@ -251,6 +253,10 @@ void App::trayMenuCallback( struct tray_menu *item, int id ) {
             webview.showMaximized();
         }
         break;
+    case MakeDesktopShortcut:
+        LOG_DEBUG << "创建桌面快捷方式";
+        utils::makeDesktopShortcut( Config::getAppFullPath(), APP_NAME );
+        break;
     default:
         LOG_WARN << "未处理的菜单ID:" << id;
         break;
@@ -270,6 +276,7 @@ void App::loadTrayMenu() {
     auto settings = {
         m_systemTray->createMenu( "启用右键菜单", EnableContextMenu, false, Config::getEnableContextmenu() ),
         m_systemTray->createMenu( "开机自启", AutoBoot, false, Config::getEnableAutoBoot() ),
+        m_systemTray->createMenu( "创建桌面快捷方式", MakeDesktopShortcut ),
     };
 
     auto root = {
@@ -376,7 +383,7 @@ bool App::sendLocalMessage( const json &msg ) {
 bool App::isBoot() {
     LOG_DEBUG << "检查单例互斥锁...";
     // 创建全局互斥锁，确保只有一个实例运行
-    g_mutex = CreateMutexA( NULL, TRUE, "Global\\ToolsInstanceMutex" );
+    g_mutex = CreateMutexA( NULL, TRUE, "Global\\LocalToolboxInstanceMutex" );
     if ( g_mutex == NULL || GetLastError() == ERROR_ALREADY_EXISTS ) {
         LOG_WARN << "检测到已有实例正在运行，向已有实例发送启动参数";
         // 另一个实例已经在运行，发送消息给已有实例

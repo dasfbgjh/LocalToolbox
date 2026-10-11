@@ -30,7 +30,38 @@ typedef struct {
 } RectBox;
 
 /* 获取最后的错误信息（线程局部）。无错误时返回NULL。 */
-OCR_API const char *last_error( void );
+OCR_API const char *last_error();
+
+/* 获取库版本号。 */
+OCR_API const char *version();
+
+/* ===================== 日志API ===================== */
+
+/* 日志等级枚举，值越小越详细。 */
+typedef enum {
+    OCR_LOG_TRACE = 0, /* 最详细，跟踪每一步操作 */
+    OCR_LOG_DEBUG = 1, /* 调试信息，如模型输入输出形状 */
+    OCR_LOG_INFO = 2,  /* 常规信息，如引擎创建/销毁、推理耗时 */
+    OCR_LOG_WARN = 3,  /* 警告，如热身失败、参数使用默认值 */
+    OCR_LOG_ERROR = 4, /* 错误，如模型加载失败 */
+    OCR_LOG_OFF = 5,   /* 关闭所有日志输出 */
+} OcrLogLevel;
+
+/* 日志回调函数类型。
+   level: OcrLogLevel枚举值
+   tag:   模块标签（如"det"、"rec"、"cls"、"plate"、"table"、"layout"）
+   msg:   日志消息（UTF-8，回调期间有效，回调返回后可能失效）
+   回调在库内部锁保护下调用，回调中不应再调用库的API。 */
+typedef void ( *OcrLogCallback )( int level, const char *tag, const char *msg );
+
+/* 设置日志等级。低于此等级的日志将被丢弃。默认OCR_LOG_WARN。 */
+OCR_API void ocr_set_log_level( int level );
+
+/* 获取当前日志等级。 */
+OCR_API int ocr_get_log_level( void );
+
+/* 设置日志回调函数。设为NULL则禁用回调输出。默认NULL。 */
+OCR_API void ocr_set_log_callback( OcrLogCallback callback );
 
 /* ===================== 字符识别API ===================== */
 
@@ -52,8 +83,9 @@ typedef struct {
 
 /* 文本方向分类模型类型。 */
 typedef enum {
-    CLS_MODEL_ANGLE = 0,       /* 2类角度分类（0°/180°），输入48×192，/255归一化 */
-    CLS_MODEL_ORIENTATION = 1, /* 4类方向分类（0°/90°/180°/270°），输入224×224，ImageNet归一化 */
+    CLS_MODEL_NONE = 0,        /* 禁用角度分类 */
+    CLS_MODEL_ANGLE = 1,       /* 2类角度分类（0°/180°），输入48×192，/255归一化 */
+    CLS_MODEL_ORIENTATION = 2, /* 4类方向分类（0°/90°/180°/270°），输入224×224，ImageNet归一化 */
 } ClsModelType;
 
 /* 创建OCR引擎的配置。
@@ -64,7 +96,7 @@ typedef struct {
     const char *rec_model_path;     /* 识别ONNX模型路径（必填） */
     const char *rec_char_dict_path; /* 字符字典路径（必填） */
     const char *cls_model_path;     /* 方向分类ONNX模型路径（NULL = 禁用） */
-    int cls_model_type;             /* ClsModelType枚举值，默认CLS_MODEL_ANGLE */
+    int cls_model_type;             /* ClsModelType枚举值，默认CLS_MODEL_NONE */
 
     int use_gpu; /* 0 = CPU，1 = CUDA */
     int gpu_id;  /* GPU设备ID */

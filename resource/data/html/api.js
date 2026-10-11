@@ -196,6 +196,9 @@
         },
         imageOcrDismiss: function (taskId) {
             return Api.delete('/tools/image/ocr/status/' + encodeURIComponent(taskId));
+        },
+        imageConvertStatus: function (taskId) {
+            return Api.get('/tools/image/convert/status/' + encodeURIComponent(taskId));
         }
     };
 
@@ -331,8 +334,38 @@
             forwardAdd: function (data) { return Api.post('/local/adb/forward/add', data); },
             forwardRemove: function (data) { return Api.post('/local/adb/forward/remove', data); },
             forwardRemoveAll: function (data) { return Api.post('/local/adb/forward/removeAll', data); },
-            shell: function (data) { return Api.post('/local/adb/shell', data); }
-        }
+            shell: function (data) { return Api.post('/local/adb/shell', data); },
+            logcat: function (serial, tag, level, pid, pkg, lines) {
+                var url = '/local/adb/logcat';
+                var params = [];
+                if (serial) params.push('serial=' + encodeURIComponent(serial));
+                if (tag) params.push('tag=' + encodeURIComponent(tag));
+                if (level) params.push('level=' + encodeURIComponent(level));
+                if (pid) params.push('pid=' + encodeURIComponent(pid));
+                if (pkg) params.push('package=' + encodeURIComponent(pkg));
+                if (lines) params.push('lines=' + encodeURIComponent(String(lines)));
+                if (params.length) url += '?' + params.join('&');
+                return Api.get(url);
+            },
+            logcatClear: function (data) { return Api.post('/local/adb/logcat/clear', data); }
+        },
+        batchOcr: {
+            models: function () {
+                return Api.get('/tools/image/ocr/models');
+            },
+            submit: function (data) {
+                return Api.post('/tools/image/ocr/batch', data);
+            },
+            list: function () {
+                return Api.get('/tools/image/ocr/batch');
+            },
+            status: function (taskId) {
+                return Api.get('/tools/image/ocr/batch/' + encodeURIComponent(taskId));
+            },
+            dismiss: function (taskId) {
+                return Api.delete('/tools/image/ocr/batch/' + encodeURIComponent(taskId));
+            }
+        },
     };
 
     Api.pdf = {

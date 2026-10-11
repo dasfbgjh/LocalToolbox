@@ -15,6 +15,7 @@ namespace fs = std::filesystem;
 using json = nlohmann::json;
 
 int main( int argc, char *argv[] ) {
+    system( "chcp 65001 >nul" );
 
     return 0;
 }
