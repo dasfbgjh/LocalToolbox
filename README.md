@@ -150,33 +150,36 @@ LocalToolbox/
 │       ├── GameTool.cpp/h        # 游戏启动器接口
 │       ├── Settings.cpp/h        # 用户设置接口
 │       └── Mcp.cpp/h             # MCP 协议接口
-├── resource/                     # 前端资源
+├── resource/                     # 资源打包系统
 │   ├── CMakeLists.txt            # 资源编译配置
 │   ├── include/
 │   │   └── resource.h            # 资源嵌入 API
-│   ├── data/
-│   │   ├── html/                 # 前端页面
-│   │   │   ├── admin/            # 管理后台
-│   │   │   ├── auth/             # 登录注册页
-│   │   │   ├── clipboard/        # 剪贴板页面
-│   │   │   ├── fileservice/      # 文件分享页面
-│   │   │   ├── tools/            # 在线小工具页面
-│   │   │   │   └── local/        # 本地系统工具页面
-│   │   │   ├── lib/              # 前端第三方库
-│   │   │   ├── webview/          # WebView 容器页面
-│   │   │   ├── app.js            # 主应用脚本
-│   │   │   ├── api.js            # API 封装
-│   │   │   ├── theme.js          # 主题管理
-│   │   │   ├── fs_browser.js     # 文件浏览器组件
-│   │   │   ├── tools.html/js     # 工具目录页
-│   │   │   └── memo.js/css       # 备忘录页
-│   │   ├── image/
-│   │   │   └── tray.ico          # 托盘图标
-│   │   └── sql/
-│   │       └── schema.sql        # 数据库表结构
 │   └── src/                      # 资源编译
 │       ├── generate.cpp          # 资源打包工具
 │       └── resource.cpp          # 资源嵌入
+├── static/                       # 前端资源（原始数据）
+│   ├── html/                     # 前端页面
+│   │   ├── admin/                # 管理后台
+│   │   ├── auth/                 # 登录注册页
+│   │   ├── clipboard/            # 剪贴板页面
+│   │   ├── fileservice/          # 文件分享页面
+│   │   ├── tools/                # 在线小工具页面
+│   │   │   └── local/            # 本地系统工具页面
+│   │   ├── lib/                  # 前端第三方库
+│   │   ├── app.js                # 主应用脚本
+│   │   ├── api.js                # API 封装
+│   │   ├── theme.js              # 主题管理
+│   │   ├── fs_browser.js         # 文件浏览器组件
+│   │   ├── tools.html/js         # 工具目录页
+│   │   └── memo.js/css           # 备忘录页
+│   ├── webview/                  # WebView 容器页面
+│   ├── games/                    # 内嵌 HTML5 游戏（原生实现）
+│   ├── games1/                   # 内嵌 HTML5 游戏（第三方合集）
+│   ├── mcp-tool/                 # MCP 工具扩展示例与配置
+│   ├── image/
+│   │   └── tray.ico              # 托盘图标
+│   └── sql/
+│       └── schema.sql            # 数据库表结构
 ├── 3rdparty/                     # 第三方库
 │   ├── OnnxOCR/                  # OCR 引擎（ONNX Runtime 动态加载）
 │   ├── httplib/                  # C++ HTTP 库
@@ -322,14 +325,14 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build .
 ```
 
-修改 `resource/data/html/` 下的文件后，刷新页面即可看到变更。
+修改 `static/html/` 下的文件后，刷新页面即可看到变更。
 
 ### 资源打包
 
 Release 模式下，所有前端资源会被编译为二进制嵌入可执行文件中。修改前端后需重新编译：
 
 ```bash
-cmake --build . --target tools_resource
+cmake --build . --target LocalToolbox_resource
 cmake --build .
 ```
 

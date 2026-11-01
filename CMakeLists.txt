@@ -14,7 +14,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin)
 include(${CMAKE_CURRENT_SOURCE_DIR}/appInfo/AppInfo.cmake)
 
 # 导入 OpenSSL 库
-find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
+set(OPENSSL_USE_STATIC_LIBS ON)
+find_package(OpenSSL REQUIRED CONFIG COMPONENTS SSL Crypto)
 
 # 导入 httplib 库
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/httplib)
@@ -22,7 +23,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/httplib)
 if(OPENSSL_FOUND)
     message(STATUS "OpenSSL support enabled")
     add_compile_definitions(-DCPPHTTPLIB_OPENSSL_SUPPORT)
-    link_libraries(ssl crypto)
+    link_libraries(OpenSSL::SSL OpenSSL::Crypto)
 endif()
 
 if(WIN32)
@@ -39,6 +40,7 @@ add_subdirectory(3rdparty/hwinfo)
 
 # 导入资源文件
 set(RESOURCE_NAME_PREIFX ${PROJECT_NAME})
+set(RESOURCE_PATH ${CMAKE_CURRENT_LIST_DIR}/static)
 add_subdirectory(resource)
 
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -114,6 +116,7 @@ target_include_directories(${APP_FILE_NAME} PRIVATE
 target_compile_definitions(${APP_FILE_NAME} PRIVATE
     -DTRAY_WINAPI=1 # 启用系统托盘
     -DCMAKE_SOURCE_DIR="${CMAKE_SOURCE_DIR}" # 用于日志中转换文件路径到相对路径
+    -DWIN32_LEAN_AND_MEAN
 )
 
 target_link_options(${APP_FILE_NAME} PRIVATE
@@ -123,7 +126,7 @@ target_link_options(${APP_FILE_NAME} PRIVATE
 # Debug 模式下，直接读取资源从系统目录
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     target_compile_definitions(${APP_FILE_NAME} PRIVATE
-        -DRESOURCE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/resource/data"
+        -DRESOURCE_PATH="${RESOURCE_PATH}"
     )
 endif()
 

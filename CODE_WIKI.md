@@ -162,16 +162,21 @@ d:\project\cmake\Tools\
 │   ├── pdf_tool.exe               # PDF 处理外部工具
 │   └── LocalToolbox               # 主程序 (CMake 生成)
 │
-├── resource/                      # 前端资源与资源打包系统
-│   ├── CMakeLists.txt             # 资源编译：生成 tools_resource 静态库
+├── resource/                      # 资源打包系统
+│   ├── CMakeLists.txt             # 资源编译：生成 LocalToolbox_resource 静态库
 │   ├── include/resource.h         # 资源嵌入 API (resource_get/resource_exists)
-│   ├── src/
-│   │   ├── generate.cpp           # 资源打包工具：扫描 data/ -> 生成 data.h
-│   │   └── resource.cpp           # 运行时资源读取接口实现
-│   └── data/                      # 原始资源文件
-│       ├── sql/schema.sql         # 数据库初始化脚本
-│       ├── image/tray.ico         # 托盘图标
-│       └── html/                  # 前端页面与脚本
+│   └── src/
+│       ├── generate.cpp           # 资源打包工具：扫描 static/ -> 生成 data.h
+│       └── resource.cpp           # 运行时资源读取接口实现
+│
+├── static/                        # 前端资源原始数据（RESOURCE_PATH 指向此处）
+│   ├── sql/schema.sql             # 数据库初始化脚本
+│   ├── image/tray.ico             # 托盘图标
+│   ├── html/                      # 前端页面与脚本
+│   ├── webview/                   # WebView 容器页面
+│   ├── games/                     # 内嵌 HTML5 游戏（原生实现）
+│   ├── games1/                    # 内嵌 HTML5 游戏（第三方合集）
+│   └── mcp-tool/                  # MCP 工具扩展示例与配置
 │
 ├── src/                           # C++ 后端源码
 │   ├── main.cpp                   # 程序入口
@@ -240,6 +245,11 @@ d:\project\cmake\Tools\
 **可执行目标**:
 - `LocalToolbox` - 主程序（Release 模式加 `WIN32` 标志，无控制台窗口）
 - `test` - 测试程序（独立测试目标）
+- `LocalToolbox_generate` - 资源打包工具（构建期运行，生成 `data.h`）
+- `LocalToolbox_generate_run` - 自定义目标，驱动资源重新打包
+- `LocalToolbox_resource` - 资源静态库（由主程序链接）
+
+**资源目录**: `RESOURCE_NAME_PREIFX = ${PROJECT_NAME}`、`RESOURCE_PATH = ${CMAKE_CURRENT_LIST_DIR}/static`，`resource/` 只保留打包系统，原始资源统一放在顶层 `static/`。
 
 **静态链接**: Release 模式下启用 `-static-libstdc++ -static-libgcc -static`，生成独立运行的 exe。
 
@@ -257,13 +267,13 @@ d:\project\cmake\Tools\
 Release 模式下，所有前端资源编译进二进制：
 
 ```
-resource/data/html/*  ──► generate.exe ──► data.h (字节数组)
-                                            │
-                                            ▼
-resource.cpp 包含 resource_get()  ──► tools_resource 静态库
-                                            │
-                                            ▼
-                                    LocalToolbox 直接链接
+static/*  ──► LocalToolbox_generate.exe ──► data.h (字节数组)
+                                                    │
+                                                    ▼
+resource.cpp 包含 resource_get() ──► LocalToolbox_resource 静态库
+                                                    │
+                                                    ▼
+                                          LocalToolbox 直接链接
 ```
 
 API:
@@ -301,7 +311,7 @@ cmake --build .
 
 ### 5.1 common 模块 - 基础组件
 
-#### 5.1.1 App 类 ([App.h](file:///d:/project/cmake/Tools/src/common/App.h), [App.cpp](file:///d:/project/cmake/Tools/src/common/App.cpp))
+#### 5.1.1 App 类 ([App.h](file:///d:/project/cmake/LocalToolbox/src/common/App.h), [App.cpp](file:///d:/project/cmake/LocalToolbox/src/common/App.cpp))
 
 **职责**: 应用程序主控制器，负责生命周期、单例保障、托盘菜单、跨进程通信。
 
@@ -341,7 +351,7 @@ cmake --build .
 
 ---
 
-#### 5.1.2 Config 类 ([Config.h](file:///d:/project/cmake/Tools/src/common/Config.h))
+#### 5.1.2 Config 类 ([Config.h](file:///d:/project/cmake/LocalToolbox/src/common/Config.h))
 
 **职责**: 全局配置中心，三层配置合并（命令行 > 数据库 app_config > 默认值）。
 
@@ -410,7 +420,7 @@ LOG_ERROR << "异常:" << e.what(); // 错误级别
 
 ---
 
-#### 5.1.4 EventLoop ([EventLoop.h](file:///d:/project/cmake/Tools/src/common/EventLoop.h))
+#### 5.1.4 EventLoop ([EventLoop.h](file:///d:/project/cmake/LocalToolbox/src/common/EventLoop.h))
 
 **职责**: 基于 `boost::asio::io_context` 的定时器 + 异步任务事件循环。
 
@@ -426,7 +436,7 @@ LOG_ERROR << "异常:" << e.what(); // 错误级别
 
 ---
 
-#### 5.1.5 SystemTray ([SystemTray.h](file:///d:/project/cmake/Tools/src/common/SystemTray.h))
+#### 5.1.5 SystemTray ([SystemTray.h](file:///d:/project/cmake/LocalToolbox/src/common/SystemTray.h))
 
 **职责**: 对 `tray` 第三方库的面向对象封装，使用 Win32 API 后端 (`TRAY_WINAPI=1`)。
 
@@ -446,7 +456,7 @@ void exit();    // 发送 WM_QUIT 终止托盘消息循环
 
 ### 5.2 core 模块 - 核心引擎
 
-#### 5.2.1 Server ([Server.h](file:///d:/project/cmake/Tools/src/core/Server.h), [Server.cpp](file:///d:/project/cmake/Tools/src/core/Server.cpp))
+#### 5.2.1 Server ([Server.h](file:///d:/project/cmake/LocalToolbox/src/core/Server.h), [Server.cpp](file:///d:/project/cmake/LocalToolbox/src/core/Server.cpp))
 
 **职责**: HTTP(S) 服务器封装，基于 `cpp-httplib`。
 
@@ -499,7 +509,7 @@ void exit();    // 发送 WM_QUIT 终止托盘消息循环
 
 ---
 
-#### 5.2.2 Database ([Database.h](file:///d:/project/cmake/Tools/src/core/Database.h))
+#### 5.2.2 Database ([Database.h](file:///d:/project/cmake/LocalToolbox/src/core/Database.h))
 
 **职责**: SQLite3 数据库 C++ 封装，线程安全。
 
@@ -530,13 +540,13 @@ using Rows = std::vector<Row>;                    // 多行
 | `deleteUserSetting(userId, key)` | 删除单条用户设置 |
 
 **初始化流程（`initSchema`）**:
-1. 执行 `resource/data/sql/schema.sql` 的全部 `CREATE TABLE IF NOT EXISTS`
+1. 执行 `static/sql/schema.sql` 的全部 `CREATE TABLE IF NOT EXISTS`
 2. 调用多次 `migration(column, defaultValue)` 检测缺失列并 `ALTER TABLE ADD COLUMN`
 3. `seedDefaultData()` 插入初始种子数据（如默认管理员账户）
 
 ---
 
-#### 5.2.3 WebviewWrapper ([WebviewWrapper.h](file:///d:/project/cmake/Tools/src/core/WebviewWrapper.h))
+#### 5.2.3 WebviewWrapper ([WebviewWrapper.h](file:///d:/project/cmake/LocalToolbox/src/core/WebviewWrapper.h))
 
 **职责**: 跨平台 WebView 封装（Windows 上用 WebView2），独立线程运行消息循环。
 
@@ -559,7 +569,7 @@ using Rows = std::vector<Row>;                    // 多行
 
 ---
 
-#### 5.2.4 HttpServerManager ([HttpServerManager.h](file:///d:/project/cmake/Tools/src/core/HttpServerManager.h))
+#### 5.2.4 HttpServerManager ([HttpServerManager.h](file:///d:/project/cmake/LocalToolbox/src/core/HttpServerManager.h))
 
 **职责**: 管理多个独立的本地 HTTP 文件服务器实例（用户可在 UI 中配置）。
 
@@ -590,7 +600,7 @@ using Rows = std::vector<Row>;                    // 多行
 
 ---
 
-#### 5.2.5 ProcManager ([ProcManager.h](file:///d:/project/cmake/Tools/src/core/ProcManager.h))
+#### 5.2.5 ProcManager ([ProcManager.h](file:///d:/project/cmake/LocalToolbox/src/core/ProcManager.h))
 
 **职责**: 管理长期运行的子进程（如开发服务器、代理服务）。
 
@@ -632,7 +642,7 @@ using Rows = std::vector<Row>;                    // 多行
 
 ---
 
-#### 5.2.6 Utils ([Utils.h](file:///d:/project/cmake/Tools/src/core/Utils.h))
+#### 5.2.6 Utils ([Utils.h](file:///d:/project/cmake/LocalToolbox/src/core/Utils.h))
 
 **工具函数分类**:
 
@@ -664,7 +674,7 @@ using Rows = std::vector<Row>;                    // 多行
 
 ---
 
-#### 5.2.7 TransferTracker ([TransferTracker.h](file:///d:/project/cmake/Tools/src/core/TransferTracker.h))
+#### 5.2.7 TransferTracker ([TransferTracker.h](file:///d:/project/cmake/LocalToolbox/src/core/TransferTracker.h))
 
 **职责**: 追踪 HTTP 文件上传/下载进度，供 UI 实时显示。
 
@@ -676,7 +686,7 @@ using Rows = std::vector<Row>;                    // 多行
 
 ---
 
-#### 5.2.8 McpClient ([McpClient.h](file:///d:/project/cmake/Tools/src/core/McpClient.h), [McpClient.cpp](file:///d:/project/cmake/Tools/src/core/McpClient.cpp))
+#### 5.2.8 McpClient ([McpClient.h](file:///d:/project/cmake/LocalToolbox/src/core/McpClient.h), [McpClient.cpp](file:///d:/project/cmake/LocalToolbox/src/core/McpClient.cpp))
 
 **职责**: MCP 协议客户端，连接外部 MCP 服务端进行工具调用/资源读取/提示获取。与服务端 `McpServer` 对称，复用 `McpCore` 的数据结构。
 
@@ -704,7 +714,7 @@ using Rows = std::vector<Row>;                    // 多行
 
 ---
 
-#### 5.2.9 McpTools ([McpTools.h](file:///d:/project/cmake/Tools/src/core/McpTools.h), [McpTools.cpp](file:///d:/project/cmake/Tools/src/core/McpTools.cpp))
+#### 5.2.9 McpTools ([McpTools.h](file:///d:/project/cmake/LocalToolbox/src/core/McpTools.h), [McpTools.cpp](file:///d:/project/cmake/LocalToolbox/src/core/McpTools.cpp))
 
 **职责**: 向 `McpServer` 注册内置工具的统一入口，由 `mcpTools::registerTools(McpServer&)` 一次性注册全部内置工具。
 
@@ -719,7 +729,7 @@ using Rows = std::vector<Row>;                    // 多行
 
 ---
 
-#### 5.2.10 CertGenerator ([CertGenerator.h](file:///d:/project/cmake/Tools/src/core/CertGenerator.h), [CertGenerator.cpp](file:///d:/project/cmake/Tools/src/core/CertGenerator.cpp))
+#### 5.2.10 CertGenerator ([CertGenerator.h](file:///d:/project/cmake/LocalToolbox/src/core/CertGenerator.h), [CertGenerator.cpp](file:///d:/project/cmake/LocalToolbox/src/core/CertGenerator.cpp))
 
 **职责**: 基于 OpenSSL 原生 API 生成自签名 SSL/TLS 证书，供 `routes::cert` 路由调用。
 
@@ -957,7 +967,7 @@ GET /api/local/sysmon/now 返回单帧；GET /api/local/sysmon/stream?since= 返
 ## 6. 数据库设计
 
 **数据库**: SQLite3（`bin/database.db`）  
-**初始化**: 首次启动 `Database::initSchema()` 执行 `resource/data/sql/schema.sql`  
+**初始化**: 首次启动 `Database::initSchema()` 执行 `static/sql/schema.sql`  
 **迁移机制**: `migration(column, default)` 检测表是否缺少列，缺则 `ALTER TABLE ADD COLUMN`（向后兼容升级）
 
 ### 6.1 用户与会话
@@ -1017,7 +1027,7 @@ GET /api/local/sysmon/now 返回单帧；GET /api/local/sysmon/stream?since= 返
 
 **无框架**（Vanilla JavaScript）：为了避免构建工具链，前端完全采用原生 HTML + CSS + JS 编写，模块化程度低但部署零依赖。
 
-### 7.2 主框架结构 ([index.html](file:///d:/project/cmake/Tools/resource/data/html/index.html))
+### 7.2 主框架结构 ([index.html](file:///d:/project/cmake/LocalToolbox/static/html/index.html))
 
 ```html
 <div id="shell">
@@ -1031,7 +1041,7 @@ GET /api/local/sysmon/now 返回单帧；GET /api/local/sysmon/stream?since= 返
 
 ### 7.3 核心脚本文件
 
-#### app.js ([app.js](file:///d:/project/cmake/Tools/resource/data/html/app.js)) - 全局应用对象
+#### app.js ([app.js](file:///d:/project/cmake/LocalToolbox/static/html/app.js)) - 全局应用对象
 
 **State 管理**（仅认证状态）:
 - `state.user` - 当前登录用户对象，持久化到 `localStorage['auth-storage']`
@@ -1043,7 +1053,7 @@ GET /api/local/sysmon/now 返回单帧；GET /api/local/sysmon/stream?since= 返
 - `closeModal()` - 关闭最上层模态
 - `escapeHtml(s)` - XSS 转义
 
-#### api.js ([api.js](file:///d:/project/cmake/Tools/resource/data/html/api.js)) - HTTP API 封装
+#### api.js ([api.js](file:///d:/project/cmake/LocalToolbox/static/html/api.js)) - HTTP API 封装
 
 **请求基类**:
 - `request(method, path, body, isForm)` → `fetch('/api' + path, {credentials: 'include'})`
@@ -1095,7 +1105,7 @@ FsBrowser.open({
 ### 7.4 前端页面目录
 
 ```
-resource/data/html/
+static/html/
 ├── index.html          # 主壳（Shell）
 ├── index.js / index.css
 ├── app.js              # App 全局对象
@@ -1152,10 +1162,21 @@ resource/data/html/
 │   ├── bip39/wordlist.js
 │   ├── fortawesome/icons.js    # Font Awesome 图标（SVG/JS）
 │   └── marked.js              # Markdown 渲染
-│
+```
+
+`static/` 下与 `html/` 同级的其它资源目录：
+
+```
+static/
+├── html/                # 前端页面与脚本（见上）
 ├── webview/             # WebView 容器页面
 │   ├── index.html
 │   └── window.html
+├── games/               # 内嵌 HTML5 游戏（原生实现）+ games.json 索引
+├── games1/              # 内嵌 HTML5 游戏（第三方合集）+ games.json 索引
+├── mcp-tool/            # MCP 工具扩展示例（ping/test）与 extension.json
+├── image/tray.ico       # 托盘图标
+└── sql/schema.sql       # 数据库初始化脚本
 ```
 
 ### 7.5 100+ 在线小工具分类
@@ -1191,11 +1212,11 @@ MCP (Model Context Protocol) 是基于 **JSON-RPC 2.0** 的协议，允许 AI �
 
 | 文件 | 职责 |
 |------|------|
-| [src/core/McpCore.h](file:///d:/project/cmake/Tools/src/core/McpCore.h) + `.cpp` | 协议层：JSON-RPC 数据结构、序列化/反序列化、错误码、方法常量、类型定义 |
-| [src/core/McpServer.h](file:///d:/project/cmake/Tools/src/core/McpServer.h) + `.cpp` | 服务端引擎：ServerCapabilities 声明、Tool/Resource/Prompt 注册表、请求分派与响应生成 |
-| [src/core/McpClient.h](file:///d:/project/cmake/Tools/src/core/McpClient.h) + `.cpp` | 客户端引擎：连接外部 MCP 服务，支持 HTTP/SSE/stdio 传输，提供强类型高级 API（详见 5.2.8） |
-| [src/core/McpTools.h](file:///d:/project/cmake/Tools/src/core/McpTools.h) + `.cpp` | 内置工具注册：`mcpTools::registerTools()` 一次性注册 echo/get_time/list_directory 等内置工具（详见 5.2.9） |
-| [src/routes/Mcp.h](file:///d:/project/cmake/Tools/src/routes/Mcp.h) + `.cpp` | HTTP 传输层：Streamable HTTP (POST /mcp) + SSE (GET /mcp → POST /mcp/:session_id) + Debug 代理（使用 McpClient） |
+| [src/core/McpCore.h](file:///d:/project/cmake/LocalToolbox/src/core/McpCore.h) + `.cpp` | 协议层：JSON-RPC 数据结构、序列化/反序列化、错误码、方法常量、类型定义 |
+| [src/core/McpServer.h](file:///d:/project/cmake/LocalToolbox/src/core/McpServer.h) + `.cpp` | 服务端引擎：ServerCapabilities 声明、Tool/Resource/Prompt 注册表、请求分派与响应生成 |
+| [src/core/McpClient.h](file:///d:/project/cmake/LocalToolbox/src/core/McpClient.h) + `.cpp` | 客户端引擎：连接外部 MCP 服务，支持 HTTP/SSE/stdio 传输，提供强类型高级 API（详见 5.2.8） |
+| [src/core/McpTools.h](file:///d:/project/cmake/LocalToolbox/src/core/McpTools.h) + `.cpp` | 内置工具注册：`mcpTools::registerTools()` 一次性注册 echo/get_time/list_directory 等内置工具（详见 5.2.9） |
+| [src/routes/Mcp.h](file:///d:/project/cmake/LocalToolbox/src/routes/Mcp.h) + `.cpp` | HTTP 传输层：Streamable HTTP (POST /mcp) + SSE (GET /mcp → POST /mcp/:session_id) + Debug 代理（使用 McpClient） |
 
 ### 8.3 McpCore 数据结构
 
@@ -1436,18 +1457,18 @@ LocalToolbox -h
 
 | 特性 | Debug | Release |
 |------|-------|---------|
-| 资源来源 | `RESOURCE_PATH` 宏 → 直接读 `resource/data/*` 磁盘文件 | 编译嵌入二进制 (`tools_resource` 静态库) |
+| 资源来源 | `RESOURCE_PATH` 宏 → 直接读 `static/*` 磁盘文件 | 编译嵌入二进制 (`LocalToolbox_resource` 静态库) |
 | 控制台窗口 | 有 (方便看日志) | 无 (`WIN32` 子系统) |
 | 日志级别 | 默认 DEBUG | 默认 INFO |
 | 静态链接 | 否（依赖运行库 DLL） | 是（独立 exe） |
 
 ### 11.2 前端热开发流程
 
-修改 `resource/data/html/**` 下的文件后：
+修改 `static/html/**` 下的文件后：
 - **Debug 模式**: 刷新浏览器即可（资源直读）
 - **Release 模式**: 需重新编译资源库：
   ```bash
-  cmake --build . --target tools_resource   # 仅重打包资源
+  cmake --build . --target LocalToolbox_resource   # 仅重打包资源
   cmake --build .                            # 重新链接主程序
   ```
 
@@ -1465,7 +1486,7 @@ LocalToolbox -h
 | 现象 | 可能原因 | 解决方案 |
 |------|---------|---------|
 | 启动即退出，无窗口 | 已有实例在运行（互斥锁） | 检查托盘区已有图标，或任务管理器结束进程 |
-| 前端 404 一片白 | Release 模式下未编译资源 | 重编译 `tools_resource` 目标 |
+| 前端 404 一片白 | Release 模式下未编译资源 | 重编译 `LocalToolbox_resource` 目标 |
 | 上传 >100MB 失败 | httplib 默认 payload 限制 | 项目已改为 4GB，如仍失败检查磁盘空间 |
 | OCR 功能报错 | RapidOCR DLL/模型缺失 | 确保 `bin/RapidOCR/` 完整 |
 | PDF 工具无响应 | `pdf_tool.exe` 缺失 | 放到 bin/ 目录或在设置中指定路径 |

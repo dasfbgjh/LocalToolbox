@@ -9,10 +9,14 @@
         });
     }
 
+    // 新建但未保存的草稿使用这个本地 id，不落库
+    var DRAFT_ID = '__draft__';
+
     // -------- 状态 --------
     var state = {
         memos: [],
         currentId: null,
+        draft: null,
         editing: false,
         dirty: false,
         filter: '',
@@ -125,6 +129,22 @@
     }
 
     // -------- 行为 --------
+    function isDraft(id) { return id === DRAFT_ID; }
+    function findMemo(id) {
+        if (isDraft(id)) return state.draft;
+        return state.memos.find(function (x) { return x.id === id; });
+    }
+    function discardDraft() {
+        if (!state.draft) return;
+        state.draft = null;
+        if (isDraft(state.currentId)) state.currentId = null;
+    }
+    // 丢弃草稿并立刻刷新列表，避免列表里残留未保存的条目
+    function dropDraftAndRefresh() {
+        if (!state.draft) return;
+        discardDraft();
+        if (dom.listItems) renderList();
+    }
     function openModal() {
         ensureModal();
         bindDom();
@@ -135,6 +155,7 @@
     function closeModal() {
         ensureExitEditing(function (choice) {
             if (choice === 'cancel') return;
+            discardDraft();
             state.currentId = null;
             state.editing = false;
             var panel = dom.modal.querySelector('.memo-panel');
@@ -146,7 +167,8 @@
         Api.localTools.memos.list().then(function (data) {
             if (data && data.success) {
                 state.memos = data.memos || [];
-                if (state.currentId && !state.memos.some(function (m) { return m.id === state.currentId; })) {
+                if (state.currentId && !isDraft(state.currentId) &&
+                    !state.memos.some(function (m) { return m.id === state.currentId; })) {
                     state.currentId = null;
                 }
                 renderList();
@@ -159,22 +181,25 @@
         });
     }
     function renderList() {
-        if (!state.memos.length) {
+        var items = state.memos.slice();
+        if (state.draft) items.unshift(state.draft);
+        if (!items.length) {
             dom.listItems.innerHTML = '<div class="memo-empty">还没有备忘录<br>点击 ＋ 创建</div>';
             return;
         }
         var filter = state.filter;
         var html = '';
-        state.memos.forEach(function (m) {
-            if (filter) {
+        items.forEach(function (m) {
+            var draft = isDraft(m.id);
+            if (filter && !draft) {
                 var t = (m.title || '').toLowerCase();
                 var c = (m.content || '').toLowerCase();
                 if (t.indexOf(filter) < 0 && c.indexOf(filter) < 0) return;
             }
-            var title = m.title || '（无标题）';
+            var title = m.title || (draft ? '新备忘录（未保存）' : '（无标题）');
             var preview = (m.content || '').replace(/^#+\s*/gm, '').replace(/[*`>]/g, '').replace(/\n+/g, ' ').trim();
             if (preview.length > 80) preview = preview.substring(0, 80) + '…';
-            var updated = formatTime(m.updated_at);
+            var updated = draft ? '未保存' : formatTime(m.updated_at);
             html += '<div class="memo-item' + (m.id === state.currentId ? ' active' : '') + '" data-id="' + window.App.escapeHtml(m.id) + '">';
             html += '  <div class="memo-item-body" data-act="open">';
             html += '    <div class="memo-item-title' + (m.title ? '' : ' untitled') + '">' + window.App.escapeHtml(title) + '</div>';
@@ -223,6 +248,17 @@
             var delBtn = el.querySelector('[data-act="delete"]');
             if (delBtn) delBtn.addEventListener('click', function (e) {
                 e.stopPropagation();
+                // 草稿未落库，直接丢弃即可
+                if (isDraft(id)) {
+                    discardDraft();
+                    state.editing = false;
+                    state.dirty = false;
+                    state.undoStack = [];
+                    state.redoStack = [];
+                    renderList();
+                    renderView();
+                    return;
+                }
                 var prevId = state.currentId;
                 state.currentId = id;
                 confirmDelete(function () {
@@ -238,7 +274,7 @@
             dom.view.innerHTML = '<div class="memo-view-empty">从左侧选择条目，或点击 ＋ 新建</div>';
             return;
         }
-        var m = state.memos.find(function (x) { return x.id === state.currentId; });
+        var m = findMemo(state.currentId);
         if (!m) {
             panel.classList.remove('memo-editing');
             dom.view.innerHTML = '<div class="memo-view-empty">条目不存在</div>';
@@ -486,6 +522,8 @@
     // 退出编辑前确认未保存修改；返回 'save' / 'discard' / 'cancel'
     function ensureExitEditing(cb) {
         if (!state.editing || !state.dirty) {
+            // 未修改直接退出时，也要丢弃可能存在的草稿
+            dropDraftAndRefresh();
             cb('discard');
             return;
         }
@@ -498,6 +536,7 @@
             if (choice === 'save') {
                 saveCurrent(function (ok) { cb(ok ? 'save' : 'cancel'); });
             } else {
+                if (choice === 'discard') dropDraftAndRefresh();
                 cb(choice);
             }
         };
@@ -519,22 +558,34 @@
     function saveCurrent(cb) {
         if (!state.currentId) { cb && cb(false); return; }
         var saveBtn = document.getElementById('memo-save');
+        var titleInput = document.getElementById('memo-title-input');
+        var contentArea = document.getElementById('memo-content');
+        if (!titleInput || !contentArea) { cb && cb(false); return; }
+        var title = titleInput.value;
+        var content = contentArea.value;
+        var draftSave = isDraft(state.currentId);
         if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '保存中…'; }
-        var title = document.getElementById('memo-title-input').value;
-        var content = document.getElementById('memo-content').value;
-        Api.localTools.memos.update(state.currentId, { title: title, content: content }).then(function (data) {
+        // 草稿首次保存才真正落库
+        var req = draftSave
+            ? Api.localTools.memos.create({ title: title, content: content })
+            : Api.localTools.memos.update(state.currentId, { title: title, content: content });
+        req.then(function (data) {
             if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = '保存'; }
-            if (data && data.success) {
+            if (data && data.success && data.memo) {
                 state.dirty = false;
-                var idx = state.memos.findIndex(function (m) { return m.id === state.currentId; });
-                if (idx >= 0 && data.memo) {
-                    state.memos[idx] = data.memo;
-                    state.memos.sort(function (a, b) { return (b.updated_at || '').localeCompare(a.updated_at || ''); });
+                if (draftSave) {
+                    state.draft = null;
+                    state.currentId = data.memo.id;
+                    state.memos.unshift(data.memo);
+                } else {
+                    var idx = state.memos.findIndex(function (m) { return m.id === state.currentId; });
+                    if (idx >= 0) state.memos[idx] = data.memo;
                 }
+                state.memos.sort(function (a, b) { return (b.updated_at || '').localeCompare(a.updated_at || ''); });
                 renderList();
                 // 更新"更新于"时间
                 var meta = dom.view.querySelector('.memo-view-meta');
-                if (meta && data.memo) meta.textContent = '更新于 ' + formatTime(data.memo.updated_at);
+                if (meta) meta.textContent = '更新于 ' + formatTime(data.memo.updated_at);
                 showToast('已保存', 'ok');
                 cb && cb(true);
             } else {
@@ -560,22 +611,23 @@
     function createNew() {
         ensureExitEditing(function (choice) {
             if (choice === 'cancel') return;
-            Api.localTools.memos.create({ title: '', content: '' }).then(function (data) {
-                if (data && data.success) {
-                    state.memos.unshift(data.memo);
-                    state.currentId = data.memo.id;
-                    state.dirty = false;
-                    state.editing = true;
-                    state.undoStack = [];
-                    state.redoStack = [];
-                    renderList();
-                    renderView();
-                    var t = document.getElementById('memo-title-input');
-                    if (t) { t.focus(); t.select && t.select(); }
-                } else {
-                    alert('新建失败: ' + ((data && data.error) || '未知'));
-                }
-            }).catch(function (err) { alert('新建失败: ' + err); });
+            // 新建只是本地草稿，点保存时才真正创建
+            state.draft = {
+                id: DRAFT_ID,
+                title: '',
+                content: '',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            state.currentId = DRAFT_ID;
+            state.dirty = false;
+            state.editing = true;
+            state.undoStack = [];
+            state.redoStack = [];
+            renderList();
+            renderView();
+            var t = document.getElementById('memo-title-input');
+            if (t) { t.focus(); }
         });
     }
     function confirmDelete(onAfter) {
