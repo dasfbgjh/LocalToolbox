@@ -119,6 +119,13 @@
         return function (path) { return Api.localTools.browse(path || ''); };
     }
 
+    // 复用同一个 Collator：比逐条调用 localeCompare 快一个数量级（大目录排序更明显）
+    var nameCollator = (typeof Intl !== 'undefined' && Intl.Collator) ? new Intl.Collator('zh-CN') : null;
+    function compareName(a, b) {
+        if (nameCollator) return nameCollator.compare(a, b);
+        return a < b ? -1 : (a > b ? 1 : 0);
+    }
+
     // 当前实例状态
     var current = null;
 
@@ -137,19 +144,8 @@
         var opt = current.options;
         var sel;
         if (opt.mode === 'multi') {
-            // 提交前先把当前目录的勾选合并到累计选择（与 loadDir 中的合并逻辑保持一致）
-            var mergedSeen = {};
-            current.accumulated.forEach(function (e) { mergedSeen[e.fullPath] = true; });
-            Object.keys(current.thisDirChecked).forEach(function (k) {
-                if (!mergedSeen[k]) current.accumulated.push(current.thisDirChecked[k]);
-            });
-            current.thisDirChecked = {};
-            // 合并累计选择
-            sel = [];
-            var seen = {};
-            current.accumulated.forEach(function (e) {
-                if (!seen[e.fullPath]) { seen[e.fullPath] = true; sel.push(e); }
-            });
+            // selected 已是跨目录全局唯一的已选集合，直接按插入顺序输出即可
+            sel = Object.keys(current.selected).map(function (k) { return current.selected[k]; });
         } else if (opt.mode === 'file') {
             sel = current.selectedPath;
         } else {
@@ -223,8 +219,12 @@
             options: opt,
             currentPath: '',
             selectedPath: '',          // file 模式选中的文件路径
-            accumulated: [],           // multi 模式累计选择 [{ fullPath, name, isDir, size, modified }]
-            thisDirChecked: {},        // multi 模式当前目录已勾选条目（path->entry），切换目录时合并到 accumulated
+            selected: Object.create(null), // multi 模式已选条目 path->entry（跨目录全局唯一来源）
+            selectedCount: 0,          // selected 的条目数（增量维护，避免反复 Object.keys）
+            entriesByPath: Object.create(null), // 当前目录条目 path->entry，供事件委托回查
+            checkableInDir: 0,         // 当前目录可勾选条数
+            checkedInDir: 0,           // 当前目录已勾选条数
+            loadToken: 0,              // 目录加载请求序号（用于丢弃过期响应）
             confirmed: false,
             panel: panel,
             pathInput: pathInput,
@@ -235,6 +235,56 @@
             selAll: selAll,
             confirmBtn: confirmBtn
         };
+
+        // 行内事件统一委托到列表容器（只绑定一次），避免为每行创建多个监听器
+        list.addEventListener('click', function (ev) {
+            var row = ev.target.closest ? ev.target.closest('.fsb-entry') : null;
+            if (!row) return;
+            if (row.getAttribute('data-up') === '1') {
+                loadDir(state, parentPath(state.currentPath));
+                return;
+            }
+            // 点击 checkbox / 其 label 时交给 change 事件处理，避免重复切换
+            if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'LABEL') return;
+            var entry = state.entriesByPath[row.getAttribute('data-path') || ''];
+            if (!entry) return;
+            if (entry.isDir) {
+                loadDir(state, entry.fullPath);
+            } else if (opt.mode === 'file') {
+                state.selectedPath = entry.fullPath;
+                confirm();
+            } else if (opt.mode === 'multi') {
+                var cb = row.querySelector('input[data-sel]');
+                if (cb && !cb.disabled) {
+                    cb.checked = !cb.checked;
+                    applyCheckbox(state, row, cb.checked);
+                }
+            }
+        });
+        // 双击：multi 模式下的文件 → 勾上并立即确认
+        list.addEventListener('dblclick', function (ev) {
+            if (opt.mode !== 'multi') return;
+            var row = ev.target.closest ? ev.target.closest('.fsb-entry') : null;
+            if (!row) return;
+            if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'LABEL') return;
+            var entry = state.entriesByPath[row.getAttribute('data-path') || ''];
+            if (!entry || entry.isDir) return;
+            var cb = row.querySelector('input[data-sel]');
+            if (!cb || cb.disabled) return;
+            if (!cb.checked) {
+                cb.checked = true;
+                applyCheckbox(state, row, true);
+            }
+            confirm();
+        });
+        // checkbox 勾选变化
+        list.addEventListener('change', function (ev) {
+            var t = ev.target;
+            if (!t || t.tagName !== 'INPUT' || !t.hasAttribute('data-sel')) return;
+            var row = t.closest ? t.closest('.fsb-entry') : null;
+            if (!row) return;
+            applyCheckbox(state, row, t.checked);
+        });
 
         // 关闭/确认
         overlay.querySelector('.fsb-close').addEventListener('click', close);
@@ -254,24 +304,28 @@
             // 严格二态切换：全选 ↔ 全不选（仅作用于当前目录可勾选项）
             // 利用浏览器点击 checkbox 后已更新的 checked 值作为 target，不再 preventDefault 自行推导
             selAll.addEventListener('click', function () {
-                var cbs = list.querySelectorAll('input[data-sel]');
-                if (!cbs.length) return;
-                var checkable = [];
-                for (var i = 0; i < cbs.length; i++) {
-                    if (!cbs[i].disabled) checkable.push(cbs[i]);
+                if (state.checkableInDir === 0) {
+                    selAll.checked = false;
+                    selAll.indeterminate = false;
+                    return;
                 }
-                if (!checkable.length) return;
-                // 以用户点击后 selAll 的最新状态为目标，同步到子 checkbox
                 var target = !!selAll.checked;
-                checkable.forEach(function (c) {
-                    if (c.checked !== target) {
-                        c.checked = target;
-                        c.dispatchEvent(new Event('change'));
-                    }
-                });
-                // 子项 change 事件里会反复改 selAll.checked/indeterminate；收尾时用目标值强制复位，保证视觉一致
+                // 一次性批量同步：不逐个子项派发 change（否则每项都会触发一次全量统计，形成 O(n²)）
+                var cbs = state.list.querySelectorAll('input[data-sel]');
+                for (var i = 0; i < cbs.length; i++) {
+                    var cb = cbs[i];
+                    if (cb.disabled) continue;
+                    cb.checked = target;
+                    var row = cb.closest ? cb.closest('.fsb-entry') : null;
+                    if (!row) continue;
+                    var path = row.getAttribute('data-path') || '';
+                    var entry = state.entriesByPath[path];
+                    if (entry) setSelected(state, path, entry, target);
+                }
+                state.checkedInDir = target ? state.checkableInDir : 0;
                 selAll.checked = target;
                 selAll.indeterminate = false;
+                updateMultiHint(state);
             });
         }
 
@@ -334,17 +388,7 @@
     }
 
     function loadDir(state, path) {
-        var opt = state.options;
-        // 切换目录前，先把当前目录的勾选合并到累计
-        if (opt.mode === 'multi') {
-            // 把 thisDirChecked 合并到 accumulated（去重）
-            var seen = {};
-            state.accumulated.forEach(function (e) { seen[e.fullPath] = true; });
-            Object.keys(state.thisDirChecked).forEach(function (k) {
-                if (!seen[k]) state.accumulated.push(state.thisDirChecked[k]);
-            });
-            state.thisDirChecked = {};
-        }
+        // 选择状态由 state.selected 全局维护，切换目录无需再合并暂存勾选
 
         path = normalizePath(path);
         state.currentPath = path || '';
@@ -352,8 +396,11 @@
         state.list.innerHTML = '<div class="fsb-empty">加载中...</div>';
         if (state.selAll) { state.selAll.checked = false; state.selAll.indeterminate = false; }
 
+        // 请求序号：快速连续跳转时丢弃过期响应，避免旧目录结果覆盖新目录
+        var token = ++state.loadToken;
         var fn = state.apiFn;
         fn(state.currentPath).then(function (data) {
+            if (token !== state.loadToken) return;
             if (!data || data.success === false) {
                 state.list.innerHTML = '<div class="fsb-empty">浏览失败: ' + esc((data && data.error) || '未知') + '</div>';
                 return;
@@ -368,142 +415,114 @@
             var entries = data.entries || [];
             if (entries.length === 0) {
                 state.list.innerHTML = '<div class="fsb-empty">空目录</div>';
+                state.entriesByPath = Object.create(null);
+                state.checkableInDir = 0;
+                state.checkedInDir = 0;
                 updateMultiHint(state);
                 return;
             }
             entries.sort(function (a, b) {
                 if (a.isDir && !b.isDir) return -1;
                 if (!a.isDir && b.isDir) return 1;
-                return a.name.localeCompare(b.name, 'zh-CN');
+                return compareName(a.name, b.name);
             });
             renderEntries(state, entries);
             updateMultiHint(state);
         }).catch(function (err) {
+            if (token !== state.loadToken) return;
             state.list.innerHTML = '<div class="fsb-empty">浏览失败: ' + esc(String(err)) + '</div>';
         });
+    }
+
+    // 记录/移除一条选择，增量维护计数（O(1)，替代原来的 some/filter 全量扫描）
+    function setSelected(state, path, entry, on) {
+        if (!path) return;
+        var existed = !!state.selected[path];
+        if (on) {
+            state.selected[path] = {
+                fullPath: path,
+                name: entry.name,
+                isDir: !!entry.isDir,
+                size: entry.size,
+                modified: entry.modified || 0
+            };
+            if (!existed) state.selectedCount++;
+        } else if (existed) {
+            delete state.selected[path];
+            state.selectedCount--;
+        }
+    }
+
+    // 单条 checkbox 变化后的状态同步
+    function applyCheckbox(state, row, checked) {
+        var path = row.getAttribute('data-path') || '';
+        var entry = state.entriesByPath[path];
+        if (!entry) return;
+        setSelected(state, path, entry, checked);
+        state.checkedInDir += checked ? 1 : -1;
+        if (state.checkedInDir < 0) state.checkedInDir = 0;
+        if (state.checkedInDir > state.checkableInDir) state.checkedInDir = state.checkableInDir;
+        updateMultiHint(state);
     }
 
     function renderEntries(state, entries) {
         var opt = state.options;
         var multi = opt.mode === 'multi';
-        var fileMode = opt.mode === 'file';
         var showSize = opt.showSize !== false;
 
-        state.list.innerHTML = '';
+        state.entriesByPath = Object.create(null);
+        state.checkableInDir = 0;
+        state.checkedInDir = 0;
 
-        // 返回上级行
+        // 先拼成完整 HTML 再一次性写入：避免逐行 appendChild 反复触发重排
+        var html = '';
         if (state.currentPath) {
-            var upRow = document.createElement('div');
-            upRow.className = 'fsb-entry fsb-up';
-            upRow.innerHTML = '<span class="fsb-icon">↩</span><span class="fsb-name">..</span><span class="fsb-size"></span>';
-            upRow.addEventListener('click', function () { loadDir(state, parentPath(state.currentPath)); });
-            state.list.appendChild(upRow);
+            html += '<div class="fsb-entry fsb-up" data-up="1">' +
+                '<span class="fsb-icon">↩</span><span class="fsb-name">..</span><span class="fsb-size"></span></div>';
         }
 
-        entries.forEach(function (e) {
-            var row = document.createElement('div');
-            row.className = 'fsb-entry';
-            row.setAttribute('data-path', e.fullPath || '');
-            row.setAttribute('data-isdir', e.isDir ? '1' : '0');
-
+        for (var i = 0; i < entries.length; i++) {
+            var e = entries[i];
             var isDir = !!e.isDir;
-            var isFile = !isDir;
-            var checkable = false;
+            var path = e.fullPath || '';
+            var checkable = multi ? (!!opt.multiFilter && !!opt.multiFilter(e)) : false;
+            var checked = multi && checkable && !!state.selected[path];
+            var pEsc = esc(path);
 
+            html += '<div class="fsb-entry" data-path="' + pEsc + '" data-isdir="' + (isDir ? '1' : '0') + '">';
             if (multi) {
-                checkable = !!opt.multiFilter && opt.multiFilter(e);
-            }
-
-            var html = '';
-            if (multi) {
-                var checked = state.accumulated.some(function (a) { return a.fullPath === e.fullPath; })
-                    || (state.thisDirChecked[e.fullPath] ? true : false);
+                if (checkable) {
+                    state.checkableInDir++;
+                    if (checked) state.checkedInDir++;
+                }
                 html += '<label class="fsb-check" title="' + (checkable ? '选中' : '不可选中') + '">' +
                     '<input type="checkbox" data-sel' + (checkable ? '' : ' disabled') + (checked ? ' checked' : '') + '></label>';
             }
-            html += '<span class="fsb-icon">' + getIcon(e.name, isDir) + '</span>';
-            html += '<span class="fsb-name" title="' + esc(e.fullPath) + '">' + esc(e.name) + '</span>';
-            html += '<span class="fsb-size">' + (isDir ? '' : (showSize ? formatSize(e.size) : '')) + '</span>';
-            row.innerHTML = html;
-
-            // 行内点击：目录 → 进入；文件 → file 模式直接确认；multi 模式 → 切换 checkbox
-            var nameEl = row.querySelector('.fsb-name');
-            row.addEventListener('click', function (ev) {
-                if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'LABEL') return;
-                if (isDir) {
-                    loadDir(state, e.fullPath);
-                } else if (fileMode) {
-                    state.selectedPath = e.fullPath;
-                    confirm();
-                } else if (multi && checkable) {
-                    var cb = row.querySelector('input[data-sel]');
-                    if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
-                }
-            });
-            // 双击：multi 文件 → 立即确认（仅在该文件可勾选时）
-            if (multi && isFile && checkable) {
-                row.addEventListener('dblclick', function (ev) {
-                    if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'LABEL') return;
-                    // 确保勾上
-                    var cb = row.querySelector('input[data-sel]');
-                    if (cb && !cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change')); }
-                    confirm();
-                });
-            }
-            // checkbox change
-            if (multi && checkable) {
-                var cbEl = row.querySelector('input[data-sel]');
-                if (cbEl) {
-                    cbEl.addEventListener('change', function (ev) {
-                        ev.stopPropagation();
-                        var entryObj = { fullPath: e.fullPath, name: e.name, isDir: isDir, size: e.size, modified: e.modified || 0 };
-                        if (cbEl.checked) {
-                            state.thisDirChecked[e.fullPath] = entryObj;
-                        } else {
-                            delete state.thisDirChecked[e.fullPath];
-                            // 同步从 accumulated 移除
-                            state.accumulated = state.accumulated.filter(function (a) { return a.fullPath !== e.fullPath; });
-                        }
-                        updateMultiHint(state);
-                    });
-                }
-            }
-
-            state.list.appendChild(row);
-        });
-
+            html += '<span class="fsb-icon">' + getIcon(e.name, isDir) + '</span>' +
+                '<span class="fsb-name" title="' + pEsc + '">' + esc(e.name) + '</span>' +
+                '<span class="fsb-size">' + (isDir ? '' : (showSize ? formatSize(e.size) : '')) + '</span>' +
+                '</div>';
+            state.entriesByPath[path] = e;
+        }
+        state.list.innerHTML = html;
         updateSelectAllState(state);
     }
 
+    // 全选状态由计数器推导，不再每次 querySelectorAll 全表扫描
     function updateSelectAllState(state) {
         var sa = state.selAll;
         if (!sa) return;
-        var cbs = state.list.querySelectorAll('input[data-sel]');
-        if (cbs.length === 0) { sa.checked = false; sa.indeterminate = false; return; }
-        var checkable = [];
-        for (var i = 0; i < cbs.length; i++) { if (!cbs[i].disabled) checkable.push(cbs[i]); }
-        if (checkable.length === 0) { sa.checked = false; sa.indeterminate = false; return; }
-        var n = 0;
-        checkable.forEach(function (c) { if (c.checked) n++; });
-        sa.checked = n === checkable.length;
-        sa.indeterminate = n > 0 && n < checkable.length;
+        var total = state.checkableInDir;
+        var n = state.checkedInDir;
+        if (total === 0) { sa.checked = false; sa.indeterminate = false; return; }
+        sa.checked = n >= total;
+        sa.indeterminate = n > 0 && n < total;
     }
 
     function updateMultiHint(state) {
-        if (!state.hintLabel) return;
-        // 先把当前目录勾选合并进累计计算
-        var seen = {};
-        state.accumulated.forEach(function (e) { seen[e.fullPath] = true; });
-        Object.keys(state.thisDirChecked).forEach(function (k) {
-            if (!seen[k]) { seen[k] = true; }
-        });
-        var n = state.accumulated.length + Object.keys(state.thisDirChecked).length;
-        // accumulated 已经包含过去目录的累计；thisDirChecked 是当前目录
-        // 上面 seen 用于去重展示，n 用更简单方式
-        var total = state.accumulated.length + Object.keys(state.thisDirChecked).length;
-        // 同步选择按钮文案
-        state.confirmBtn.textContent = '选择 (' + total + ')';
-        // 同步 select-all 状态
+        // 仅在 multi 模式下改写确认按钮文案，避免覆盖 dir/file 模式的固定文案
+        if (state.options.mode !== 'multi') return;
+        if (state.confirmBtn) state.confirmBtn.textContent = '选择 (' + state.selectedCount + ')';
         updateSelectAllState(state);
     }
 

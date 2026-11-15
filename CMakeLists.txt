@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 project(LocalToolbox
-    VERSION 1.0.4
+    VERSION 1.0.5
     DESCRIPTION "LocalToolbox - a collection of useful tools"
     HOMEPAGE_URL "https://github.com/dasfbgjh/LocalToolbox"
 )

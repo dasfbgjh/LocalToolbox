@@ -33,7 +33,8 @@
     var items = []; // [{oldName, isDir, oldPath, newName, status, err, modified, size}]
     var sortState = { key: null, dir: null }; // {key:'name'|'date'|null, dir:'asc'|'desc'|null}
 
-    function addItem(p) {
+    // 单条入列；noRender=true 时只改数据，由调用方统一刷新
+    function addItem(p, noRender) {
         // 支持传路径字符串 或 完整 entry 对象
         var entry = (typeof p === 'object' && p !== null) ? p : null;
         var fullPath = entry ? entry.fullPath : p;
@@ -57,15 +58,31 @@
             status: 'pending', // pending | success | error
             err: ''
         });
-        renderTable();
-        previewAll();
+        if (!noRender) refresh();
         return true;
+    }
+
+    // 批量入列：先全部写入 items，再统一预览 + 渲染一次
+    // （逐条调用 addItem 会导致每次新增都重建整张表，文件上百时变成 O(n²) 渲染）
+    function addItems(list) {
+        if (!list || list.length === 0) return 0;
+        var seen = {};
+        items.forEach(function (it) { seen[it.oldPath] = true; });
+        var added = 0;
+        for (var i = 0; i < list.length; i++) {
+            var entry = (typeof list[i] === 'object' && list[i] !== null) ? list[i] : null;
+            var fullPath = entry ? entry.fullPath : list[i];
+            if (!fullPath || seen[fullPath]) continue;
+            seen[fullPath] = true;
+            if (addItem(list[i], true)) added++;
+        }
+        if (added > 0) refresh();
+        return added;
     }
 
     function removeItem(idx) {
         items.splice(idx, 1);
-        renderTable();
-        previewAll();
+        refresh();
     }
 
     function moveItem(idx, delta) {
@@ -74,8 +91,7 @@
         var tmp = items[idx];
         items[idx] = items[j];
         items[j] = tmp;
-        renderTable();
-        previewAll();
+        refresh();
     }
 
     function clearItems() {
@@ -87,8 +103,7 @@
         items = [];
         history = [];
         updateUndoBtn();
-        renderTable();
-        previewAll();
+        refresh();
     }
 
     function applySort(key, dir) {
@@ -146,6 +161,7 @@
             var newCls = it.newName !== it.oldName ? 'br-new changed' : 'br-new';
             var upDis = i === 0 ? ' disabled' : '';
             var dnDis = i === items.length - 1 ? ' disabled' : '';
+            var path = App.escapeHtml(it.oldPath);
             html += '<tr' + (it.status === 'error' ? ' class="ui-form-row-err"' : '') + '>' +
                 '<td>' +
                 '<span class="br-handle">' +
@@ -155,23 +171,26 @@
                 '</td>' +
                 '<td class="br-old">' + App.escapeHtml(it.oldName) + '</td>' +
                 '<td class="' + newCls + '">' + App.escapeHtml(it.newName || '') + '</td>' +
-                '<td class="br-path" title="' + App.escapeHtml(it.oldPath) + '">' + App.escapeHtml(it.oldPath) + '</td>' +
+                '<td class="br-path" title="' + path + '">' + path + '</td>' +
                 '<td>' + statusHtml + '</td>' +
                 '<td class="br-actions"><button class="btn btn-sm btn-ghost" data-act="remove" data-i="' + i + '">移除</button></td>' +
                 '</tr>';
         });
         tbody.innerHTML = html;
-        tbody.querySelectorAll('button[data-act]').forEach(function (btn) {
-            var act = btn.getAttribute('data-act');
-            var i = parseInt(btn.getAttribute('data-i'), 10);
-            btn.addEventListener('click', function () {
-                if (act === 'remove') removeItem(i);
-                else if (act === 'up') moveItem(i, -1);
-                else if (act === 'down') moveItem(i, 1);
-            });
-        });
         document.getElementById('br-stats').textContent = items.length + ' 个文件';
     }
+
+    // 行内按钮使用事件委托（只绑定一次），避免每次渲染为每个按钮创建监听器
+    document.getElementById('br-tbody').addEventListener('click', function (e) {
+        var btn = e.target.closest ? e.target.closest('button[data-act]') : null;
+        if (!btn) return;
+        var act = btn.getAttribute('data-act');
+        var i = parseInt(btn.getAttribute('data-i'), 10);
+        if (isNaN(i)) return;
+        if (act === 'remove') removeItem(i);
+        else if (act === 'up') moveItem(i, -1);
+        else if (act === 'down') moveItem(i, 1);
+    });
 
     // ===== 规则计算 =====
     // 把 name 拆成 base + ext（最后一个 .）
@@ -350,10 +369,11 @@
         return el ? el.value : '';
     }
 
-    function previewAll() {
-        if (!document.getElementById('chk-autopreview').checked) return;
+    // 只计算预览名，不触碰 DOM
+    function computePreview() {
+        if (!document.getElementById('chk-autopreview').checked) return false;
         var rule = currentRule();
-        if (!rule) return;
+        if (!rule) return false;
         items.forEach(function (it, i) {
             // 已成功/失败的不重新计算
             if (it.status === 'success' || it.status === 'error') return;
@@ -363,7 +383,32 @@
                 it.newName = it.oldName;
             }
         });
+        return true;
+    }
+
+    function previewAll() {
+        cancelScheduledPreview();
+        if (computePreview()) renderTable();
+    }
+
+    // 预览 + 渲染一次（数据变更后的统一刷新入口）
+    function refresh() {
+        cancelScheduledPreview();
+        computePreview();
         renderTable();
+    }
+
+    // 输入框连续输入时合并刷新，避免每敲一个字符就整表重绘
+    var previewTimer = 0;
+    function cancelScheduledPreview() {
+        if (previewTimer) { clearTimeout(previewTimer); previewTimer = 0; }
+    }
+    function schedulePreview() {
+        cancelScheduledPreview();
+        previewTimer = setTimeout(function () {
+            previewTimer = 0;
+            previewAll();
+        }, 60);
     }
 
     // ===== 自动预览开关 + 输入变化 =====
@@ -371,7 +416,7 @@
         if (this.checked) previewAll();
     });
     document.querySelectorAll('.br-pane input, .br-pane select').forEach(function (el) {
-        el.addEventListener('input', previewAll);
+        el.addEventListener('input', schedulePreview);
         el.addEventListener('change', previewAll);
     });
 
@@ -410,7 +455,7 @@
             hint: '点击文件夹进入，勾选后点"选择"加入',
             multiFilter: function () { return true; }, // 文件和文件夹都可选
             onConfirm: function (entries) {
-                entries.forEach(function (e) { addItem(e); });
+                addItems(entries);
             }
         });
     }
@@ -457,8 +502,7 @@
                     }
                 }
             });
-            renderTable();
-            previewAll();
+            refresh();
             var failed = data.failCount || 0;
             if (failed > 0) {
                 // 部分失败时，把失败的项作为新栈顶留着，告知用户
